@@ -10,7 +10,11 @@
     "city": "Austin",
     "state": "TX",
     "location": "Austin, TX",
-    "skills": ["TypeScript", "React", "Node.js"],
+    "skills": [
+      "TypeScript",
+      "React",
+      "Node.js"
+    ],
     "summary": "Full-stack engineer focused on developer tools.",
     "education": {
       "school": "Tech University",
@@ -22,12 +26,50 @@
     "educationList": [],
     "projects": [],
     "certifications": [],
-    "languages": ["English"]
+    "languages": [
+      "English"
+    ]
   },
   "answerBank": [
-    { "q": "Years of experience?", "a": "5" }
+    {
+      "q": "Years of experience?",
+      "a": "5"
+    }
   ],
-  "applications": [],
+  "applications": [
+    {
+      "key": "greenhouse:acme:12345",
+      "title": "Senior Data Engineer",
+      "company": "Acme Analytics",
+      "url": "https://boards.greenhouse.io/acme/jobs/12345",
+      "source": "company",
+      "location": "Remote",
+      "status": "Filled",
+      "stage": "saved",
+      "notes": "Imported sample tracker row",
+      "reminderAt": "",
+      "score": 82,
+      "createdAt": "2026-11-01T00:00:00.000Z",
+      "updatedAt": "2026-11-01T00:00:00.000Z",
+      "filledAt": "2026-11-01T00:00:00.000Z"
+    },
+    {
+      "key": "linkedin:9876543210",
+      "title": "Platform Engineer",
+      "company": "Example Corp",
+      "url": "https://www.linkedin.com/jobs/view/9876543210",
+      "source": "linkedin",
+      "location": "Austin, TX",
+      "status": "Applied",
+      "stage": "applied",
+      "notes": "Follow up after screen",
+      "reminderAt": "2026-11-15",
+      "score": 76,
+      "createdAt": "2026-10-20T00:00:00.000Z",
+      "updatedAt": "2026-10-22T00:00:00.000Z",
+      "appliedAt": "2026-10-22T00:00:00.000Z"
+    }
+  ],
   "settings": {
     "ollamaUrl": "http://127.0.0.1:11434",
     "model": "qwen2.5:3b"

@@ -9,9 +9,9 @@ const MODULES = [
   {
     name: 'search',
     path: 'src/modules/search',
-    badge: 'm3',
+    badge: 'm3+',
     summary:
-      'Indeed + Google Jobs + LinkedIn + company career URL stubs. Source toggles, rate limit, search history, fixtures.'
+      'Indeed + Google Jobs + hardened LinkedIn (scroll/login-aware) + Greenhouse/Lever/Ashby company crawl. Source toggles, rate limit, history, optional scheduled runs.'
   },
   {
     name: 'match',
@@ -23,21 +23,28 @@ const MODULES = [
     name: 'notify',
     path: 'src/modules/notify',
     badge: 'm2',
-    summary: 'Desktop notifications for best-fit jobs (session dedupe by job id).'
+    summary: 'Desktop notifications for best-fit jobs + tracker reminder alerts.'
   },
   {
     name: 'apply',
     path: 'src/modules/apply',
     badge: 'm3',
     summary:
-      'Profile autofill (Greenhouse/Lever/Ashby/LinkedIn/generic patterns). Confirm vs unattended; never auto-submits.'
+      'Profile autofill (Greenhouse/Lever/Ashby/LinkedIn/generic). Confirm vs unattended; never auto-submits. Writes tracker rows on fill.'
+  },
+  {
+    name: 'tracker',
+    path: 'src/modules/tracker',
+    badge: 'm6',
+    summary:
+      'Extension-compatible stages/status/jobKey, notes, reminders, CSV export, import from backups.'
   },
   {
     name: 'import',
     path: 'src/modules/import',
     badge: 'm1',
     summary:
-      'Importers for job-apply-profile.json and kind: job-apply-assistant-backup.'
+      'Importers for job-apply-profile.json and kind: job-apply-assistant-backup (incl. applications).'
   },
   {
     name: 'ollama',
@@ -52,7 +59,8 @@ export default function ModulesPanel() {
     <div className="panel">
       <h2>Modules</h2>
       <p className="lede">
-        Milestone 3 expands search sources and wires apply-fill with apply-safety prefs.
+        Post-M3: Match inbox, Apply queue, Tracker parity, LinkedIn/company search hardening, and
+        scheduled search prefs.
       </p>
       <div className="module-list">
         {MODULES.map((m) => (

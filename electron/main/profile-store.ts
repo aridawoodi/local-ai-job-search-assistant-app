@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { emptyBundle, type StoredProfileBundle } from '../../src/shared/profile'
+import { parseApplications } from '../../src/modules/tracker'
 
 function storeDir(): string {
   const dir = join(app.getPath('userData'), 'data')
@@ -24,7 +25,7 @@ export function loadProfileBundle(): StoredProfileBundle {
       profile: { ...empty.profile, ...parsed.profile },
       answerBank: parsed.answerBank ?? [],
       settings: { ...empty.settings, ...parsed.settings },
-      applications: parsed.applications ?? []
+      applications: parseApplications(parsed.applications ?? [])
     }
   } catch {
     return emptyBundle()

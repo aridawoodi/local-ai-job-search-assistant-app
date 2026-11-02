@@ -3,6 +3,8 @@
  * Ported for import compatibility — extension repo remains read-only.
  */
 
+import type { ApplicationRow } from './tracker'
+
 export interface EducationEntry {
   school?: string
   degree?: string
@@ -111,7 +113,7 @@ export interface StoredProfileBundle {
   profile: UserProfile
   answerBank: AnswerBankEntry[]
   settings: ExtensionSettings
-  applications: unknown[]
+  applications: ApplicationRow[]
   resume?: unknown
   importedFrom?: string
   importedAt?: string

@@ -1,6 +1,6 @@
 /**
- * Company career-site stubs: scrape user-configured listing URLs with a
- * generic job-link heuristic (Greenhouse boards, Lever, Ashby, careers pages).
+ * Company career-site crawl: Greenhouse / Lever / Ashby specific selectors
+ * plus a generic job-link heuristic for other careers pages.
  */
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
@@ -63,47 +63,113 @@ function guessCompanyFromUrl(url: string): string {
 
 async function scrapeListingPage(page: Page, pageUrl: string): Promise<RawCard[]> {
   const company = guessCompanyFromUrl(pageUrl)
-  return page.evaluate((companyName) => {
-    const out: { title: string; company: string; location: string; url: string; snippet: string }[] =
-      []
-    const seen = new Set<string>()
-    const anchors = Array.from(document.querySelectorAll('a[href]')) as HTMLAnchorElement[]
+  return page.evaluate(
+    ({ companyName, pageUrl: originUrl }) => {
+      const out: {
+        title: string
+        company: string
+        location: string
+        url: string
+        snippet: string
+      }[] = []
+      const seen = new Set<string>()
 
-    for (const a of anchors) {
-      const href = a.href || ''
-      const title = (a.innerText || a.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim()
-      if (!title || title.length < 3 || title.length > 140) continue
-      if (/^(apply|learn more|view|see all|home|about|careers|jobs)$/i.test(title)) continue
+      const push = (title: string, href: string, location: string, snippet: string) => {
+        const t = title.replace(/\s+/g, ' ').trim()
+        if (!t || t.length < 3 || t.length > 160) return
+        if (/^(apply|learn more|view|see all|home|about|careers|jobs|back)$/i.test(t)) return
+        if (!href || seen.has(href) || seen.has(t.toLowerCase())) return
+        seen.add(href)
+        seen.add(t.toLowerCase())
+        out.push({
+          title: t,
+          company: companyName,
+          location: location.trim(),
+          url: href,
+          snippet: snippet.slice(0, 200)
+        })
+      }
 
-      const looksLikeJob =
-        /\/jobs?\/|\/job\/|\/position|\/opening|\/role|greenhouse\.io|lever\.co|ashbyhq\.com|myworkdayjobs/i.test(
-          href
-        ) ||
-        Boolean(a.closest('[class*="opening" i], [class*="job" i], [class*="position" i], tr, li'))
-
-      if (!looksLikeJob) continue
-      if (seen.has(href) || seen.has(title.toLowerCase())) continue
-      seen.add(href)
-      seen.add(title.toLowerCase())
-
-      const box = a.closest('li, tr, div, article') as HTMLElement | null
-      const boxText = (box?.innerText || '').split('\n').map((l) => l.trim()).filter(Boolean)
-      const location =
-        boxText.find((l) =>
-          /\b(remote|hybrid|on-?site|, [A-Z]{2}\b|united states|london|new york)\b/i.test(l)
-        ) || ''
-
-      out.push({
-        title,
-        company: companyName,
-        location,
-        url: href,
-        snippet: boxText.slice(0, 3).join(' · ').slice(0, 200)
+      // Greenhouse board
+      document.querySelectorAll('div.opening a, section#jobs div.opening a, a[href*="/jobs/"]').forEach((el) => {
+        const a = el as HTMLAnchorElement
+        if (!/greenhouse\.io|\/jobs\//i.test(a.href) && !a.closest('div.opening')) return
+        const loc =
+          (a.parentElement?.querySelector('.location') as HTMLElement | null)?.innerText ||
+          (a.closest('div.opening')?.querySelector('.location') as HTMLElement | null)?.innerText ||
+          ''
+        push(a.innerText || a.getAttribute('aria-label') || '', a.href, loc, loc)
       })
-      if (out.length >= 30) break
-    }
-    return out
-  }, company)
+
+      // Lever
+      document
+        .querySelectorAll(
+          '.posting a.posting-title, .posting a[href*="/"], a.posting-btn-submit, div.posting'
+        )
+        .forEach((el) => {
+          const root = el.closest('.posting') || el
+          const a =
+            (root.querySelector('a.posting-title, a[href]') as HTMLAnchorElement | null) ||
+            (el as HTMLAnchorElement)
+          if (!a?.href || !/lever\.co/i.test(a.href + originUrl)) return
+          const title =
+            (root.querySelector('h5, a.posting-title') as HTMLElement | null)?.innerText ||
+            a.innerText
+          const loc =
+            (root.querySelector('.sort-by-location, .posting-categories, span.location') as HTMLElement | null)
+              ?.innerText || ''
+          push(title, a.href, loc, loc)
+        })
+
+      // Ashby
+      document
+        .querySelectorAll(
+          'a[href*="ashbyhq.com"], a[href*="/api/"], div[class*="ashby"], a[class*="job"]'
+        )
+        .forEach((el) => {
+          const a = (el.closest('a') || el) as HTMLAnchorElement
+          if (!a?.href) return
+          if (!/ashbyhq\.com|\/jobs\//i.test(a.href + originUrl) && !a.closest('[class*="ashby" i]'))
+            return
+          const title = (a.innerText || a.getAttribute('aria-label') || '').trim()
+          const box = a.closest('div, li, article') as HTMLElement | null
+          const loc =
+            box?.innerText
+              ?.split('\n')
+              .map((l) => l.trim())
+              .find((l) => /\b(remote|hybrid|, [A-Z]{2}\b)/i.test(l)) || ''
+          push(title, a.href, loc, loc)
+        })
+
+      // Generic fallback
+      if (out.length < 3) {
+        const anchors = Array.from(document.querySelectorAll('a[href]')) as HTMLAnchorElement[]
+        for (const a of anchors) {
+          const href = a.href || ''
+          const title = (a.innerText || a.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim()
+          const looksLikeJob =
+            /\/jobs?\/|\/job\/|\/position|\/opening|\/role|greenhouse\.io|lever\.co|ashbyhq\.com|myworkdayjobs/i.test(
+              href
+            ) ||
+            Boolean(
+              a.closest('[class*="opening" i], [class*="job" i], [class*="position" i], [class*="posting" i], tr, li')
+            )
+          if (!looksLikeJob) continue
+          const box = a.closest('li, tr, div, article') as HTMLElement | null
+          const boxText = (box?.innerText || '').split('\n').map((l) => l.trim()).filter(Boolean)
+          const location =
+            boxText.find((l) =>
+              /\b(remote|hybrid|on-?site|, [A-Z]{2}\b|united states|london|new york)\b/i.test(l)
+            ) || ''
+          push(title, href, location, boxText.slice(0, 3).join(' · '))
+          if (out.length >= 40) break
+        }
+      }
+
+      return out
+    },
+    { companyName: company, pageUrl }
+  )
 }
 
 function parseFixtureHtml(html: string): RawCard[] {
@@ -152,10 +218,17 @@ export async function searchCompanySites(
   const all: RawCard[] = []
   const notes: string[] = []
 
-  for (const url of urls.slice(0, 5)) {
+  for (const url of urls.slice(0, 8)) {
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
-      await new Promise((r) => setTimeout(r, 1200))
+      await new Promise((r) => setTimeout(r, 1400))
+      // Some boards lazy-load openings after hydration
+      await page
+        .waitForSelector(
+          'div.opening, .posting, a[href*="/jobs/"], a.posting-title, [class*="job" i]',
+          { timeout: 8_000 }
+        )
+        .catch(() => null)
       const cards = await scrapeListingPage(page, url)
       all.push(...cards)
       notes.push(`${url} → ${cards.length}`)
@@ -185,7 +258,16 @@ export async function searchCompanySites(
     }
   }
 
-  const jobs = all
+  // Dedupe by URL before slice
+  const seen = new Set<string>()
+  const deduped: RawCard[] = []
+  for (const card of all) {
+    if (seen.has(card.url)) continue
+    seen.add(card.url)
+    deduped.push(card)
+  }
+
+  const jobs = deduped
     .map(toListing)
     .filter((j): j is JobListing => Boolean(j))
     .slice(0, max)

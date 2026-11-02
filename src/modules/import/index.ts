@@ -6,6 +6,7 @@ import {
   type StoredProfileBundle,
   type UserProfile
 } from '../../shared/profile'
+import { parseApplications } from '../tracker'
 
 export interface ImportResult {
   ok: boolean
@@ -109,7 +110,9 @@ export function parseExtensionExport(
       profile: mergeProfile(data.profile),
       answerBank: parseAnswerBank(data.answerBank),
       settings: parseSettings(data.settings),
-      applications: Array.isArray(data.applications) ? data.applications : [],
+      applications: parseApplications(
+        Array.isArray(data.applications) ? data.applications : []
+      ),
       resume: data.resume,
       importedFrom: sourceLabel,
       importedAt: new Date().toISOString()
@@ -131,7 +134,9 @@ export function parseExtensionExport(
       profile: mergeProfile(data.profile),
       answerBank: parseAnswerBank(data.answerBank),
       settings: parseSettings(data.settings),
-      applications: Array.isArray(data.applications) ? data.applications : [],
+      applications: parseApplications(
+        Array.isArray(data.applications) ? data.applications : []
+      ),
       resume: data.resume,
       importedFrom: sourceLabel,
       importedAt: new Date().toISOString()

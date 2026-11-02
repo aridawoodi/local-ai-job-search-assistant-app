@@ -6,7 +6,7 @@ import {
   shell,
   dialog
 } from 'electron'
-import { readFileSync, existsSync } from 'fs'
+import { readFileSync, existsSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { loadPreferences, updatePreferences } from './preferences-store'
 import { loadProfileBundle, saveProfileBundle } from './profile-store'
@@ -20,15 +20,29 @@ import {
   parseExtensionExport,
   skipExtensionImportMessage
 } from '../../src/modules/import'
-import type { JobListing, PipelineStatus } from '../../src/shared/types'
+import {
+  applicationsToCsv,
+  deleteApplication,
+  dueReminders,
+  parseApplications,
+  recordApplyResults,
+  updateApplication
+} from '../../src/modules/tracker'
+import type { ApplyResult, JobListing, MatchResult, PipelineStatus } from '../../src/shared/types'
+import type { TrackerStage, TrackerStatus } from '../../src/shared/tracker'
 
 let mainWindow: BrowserWindow | null = null
 let lastJobs: JobListing[] = []
+let lastMatches: MatchResult[] = []
+let lastApplyResults: ApplyResult[] = []
 let pipelineStatus: PipelineStatus = {
   stage: 'idle',
   message: 'Ready',
   updatedAt: new Date().toISOString()
 }
+let scheduleTimer: ReturnType<typeof setInterval> | null = null
+let reminderTimer: ReturnType<typeof setInterval> | null = null
+const notifiedReminders = new Set<string>()
 
 function setStatus(stage: PipelineStatus['stage'], message: string): void {
   pipelineStatus = { stage, message, updatedAt: new Date().toISOString() }
@@ -45,10 +59,10 @@ function sampleFixturePath(): string {
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 760,
-    minWidth: 840,
-    minHeight: 560,
+    width: 1180,
+    height: 800,
+    minWidth: 880,
+    minHeight: 600,
     title: 'Job Search Assistant',
     show: false,
     backgroundColor: '#0f1220',
@@ -101,6 +115,20 @@ function showDesktopNotification(title: string, body: string): void {
   }
 }
 
+function persistApplyToTracker(results: ApplyResult[]): number {
+  const bundle = loadProfileBundle()
+  const { applications, written } = recordApplyResults(
+    bundle.applications,
+    lastJobs,
+    results,
+    lastMatches
+  )
+  if (written > 0) {
+    saveProfileBundle({ ...bundle, applications })
+  }
+  return written
+}
+
 async function runSearchInternal() {
   const prefs = loadPreferences()
   const bundle = loadProfileBundle()
@@ -117,6 +145,8 @@ async function runSearchInternal() {
     cwd: process.cwd()
   })
   lastJobs = result.jobs
+  lastMatches = []
+  lastApplyResults = []
   setStatus(
     'idle',
     `${result.jobs.length} job(s) from ${result.sources.length} source(s); query="${result.query}"`
@@ -160,21 +190,85 @@ async function applyInternal(jobIds: string[], confirmed: boolean) {
     ? await confirmAndFill(jobIds, prefs, ctx)
     : await applyToJobs(jobIds, prefs, ctx)
 
+  lastApplyResults = results
+  const written = persistApplyToTracker(results)
+
   const filled = results.filter((r) => r.status === 'filled' || r.status === 'needs_you').length
   const pending = results.filter((r) => r.status === 'pending_confirm').length
   setStatus(
     'idle',
-    `Apply done: ${filled} filled, ${pending} pending confirm, 0 submitted (safety).`
+    `Apply done: ${filled} filled, ${pending} pending confirm, ${written} tracker row(s), 0 submitted (safety).`
   )
   return results
 }
 
+function checkDueReminders(): { due: ReturnType<typeof dueReminders>; notified: number } {
+  const prefs = loadPreferences()
+  const bundle = loadProfileBundle()
+  const due = dueReminders(bundle.applications)
+  let notified = 0
+  if (prefs.reminderNotifications) {
+    for (const row of due) {
+      const id = `${row.key}:${row.reminderAt}`
+      if (notifiedReminders.has(id)) continue
+      notifiedReminders.add(id)
+      showDesktopNotification(
+        'Follow up reminder',
+        `${row.company} — ${row.title}${row.notes ? ` · ${row.notes.slice(0, 80)}` : ''}`
+      )
+      notified++
+    }
+  }
+  return { due, notified }
+}
+
+async function runScheduledPipeline(): Promise<void> {
+  try {
+    const { jobs, meta, history } = await runSearchInternal()
+    const prefs = loadPreferences()
+    const bundle = loadProfileBundle()
+    const matches = await matchJobs(jobs, prefs, bundle.profile)
+    lastMatches = matches
+    const notify = await notifyBestFits(matches, showDesktopNotification)
+    setStatus(
+      'idle',
+      `Scheduled run: ${jobs.length} jobs, ${matches.filter((m) => m.fits).length} fits, ${notify.notified} notified. (${meta.message})`
+    )
+    void history
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    setStatus('idle', `Scheduled search failed: ${message}`)
+  }
+}
+
+function refreshScheduleTimer(): void {
+  if (scheduleTimer) {
+    clearInterval(scheduleTimer)
+    scheduleTimer = null
+  }
+  const mins = loadPreferences().scheduledSearchMinutes || 0
+  if (mins > 0) {
+    scheduleTimer = setInterval(() => {
+      void runScheduledPipeline()
+    }, Math.max(mins, 5) * 60_000)
+  }
+}
+
 function registerIpc(): void {
   ipcMain.handle('prefs:get', () => loadPreferences())
-  ipcMain.handle('prefs:set', (_e, partial) => updatePreferences(partial))
+  ipcMain.handle('prefs:set', (_e, partial) => {
+    const next = updatePreferences(partial)
+    if (partial && Object.prototype.hasOwnProperty.call(partial, 'scheduledSearchMinutes')) {
+      refreshScheduleTimer()
+    }
+    return next
+  })
   ipcMain.handle('profile:get', () => loadProfileBundle())
   ipcMain.handle('pipeline:status', () => pipelineStatus)
   ipcMain.handle('pipeline:search-history', () => getSearchHistory())
+  ipcMain.handle('pipeline:last-jobs', () => lastJobs)
+  ipcMain.handle('pipeline:last-matches', () => lastMatches)
+  ipcMain.handle('pipeline:last-apply', () => lastApplyResults)
 
   ipcMain.handle('browser:status', () => {
     const prefs = loadPreferences()
@@ -243,7 +337,8 @@ function registerIpc(): void {
     const prefs = loadPreferences()
     const bundle = loadProfileBundle()
     if (jobs?.length) lastJobs = jobs
-    const results = await matchJobs(jobs, prefs, bundle.profile)
+    const results = await matchJobs(jobs?.length ? jobs : lastJobs, prefs, bundle.profile)
+    lastMatches = results
     const fits = results.filter((r) => r.fits).length
     setStatus('idle', `Matched ${results.length} job(s); ${fits} meet threshold ${prefs.matchThreshold}.`)
     return results
@@ -251,7 +346,8 @@ function registerIpc(): void {
 
   ipcMain.handle('pipeline:notify', async (_e, matches) => {
     setStatus('notify', 'Sending desktop notifications…')
-    const result = await notifyBestFits(matches, showDesktopNotification)
+    const scored = matches?.length ? matches : lastMatches
+    const result = await notifyBestFits(scored, showDesktopNotification)
     setStatus(
       'idle',
       `Notified ${result.notified} best-fit job(s)` +
@@ -287,6 +383,7 @@ function registerIpc(): void {
       const prefs = loadPreferences()
       const bundle = loadProfileBundle()
       const matches = await matchJobs(jobs, prefs, bundle.profile)
+      lastMatches = matches
       setStatus('notify', 'Notifying best fits…')
       const notify = await notifyBestFits(matches, showDesktopNotification)
       setStatus(
@@ -300,6 +397,55 @@ function registerIpc(): void {
       throw err
     }
   })
+
+  ipcMain.handle('tracker:list', () => parseApplications(loadProfileBundle().applications))
+
+  ipcMain.handle(
+    'tracker:update',
+    (
+      _e,
+      key: string,
+      patch: Partial<{
+        stage: TrackerStage
+        status: TrackerStatus
+        notes: string
+        reminderAt: string
+        title: string
+        company: string
+        location: string
+      }>
+    ) => {
+      const bundle = loadProfileBundle()
+      const { applications, row } = updateApplication(bundle.applications, key, patch || {})
+      saveProfileBundle({ ...bundle, applications })
+      return row
+    }
+  )
+
+  ipcMain.handle('tracker:delete', (_e, key: string) => {
+    const bundle = loadProfileBundle()
+    const applications = deleteApplication(bundle.applications, key)
+    saveProfileBundle({ ...bundle, applications })
+    return applications
+  })
+
+  ipcMain.handle('tracker:export-csv', async () => {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow
+    const bundle = loadProfileBundle()
+    const csv = applicationsToCsv(bundle.applications)
+    const { canceled, filePath } = await dialog.showSaveDialog(win!, {
+      title: 'Export application tracker CSV',
+      defaultPath: 'applications.csv',
+      filters: [{ name: 'CSV', extensions: ['csv'] }]
+    })
+    if (canceled || !filePath) {
+      return { ok: false, cancelled: true, message: 'Export cancelled.' }
+    }
+    writeFileSync(filePath, csv, 'utf8')
+    return { ok: true, path: filePath, message: `Exported ${bundle.applications.length} row(s).` }
+  })
+
+  ipcMain.handle('tracker:check-reminders', () => checkDueReminders())
 
   ipcMain.handle('import:extension', async () => {
     const win = BrowserWindow.getFocusedWindow() || mainWindow
@@ -349,6 +495,11 @@ function registerIpc(): void {
 app.whenReady().then(() => {
   registerIpc()
   createWindow()
+  refreshScheduleTimer()
+  reminderTimer = setInterval(() => {
+    checkDueReminders()
+  }, 15 * 60_000)
+  setTimeout(() => checkDueReminders(), 5_000)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -356,6 +507,8 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  if (scheduleTimer) clearInterval(scheduleTimer)
+  if (reminderTimer) clearInterval(reminderTimer)
   void browserController.close()
   if (process.platform !== 'darwin') app.quit()
 })

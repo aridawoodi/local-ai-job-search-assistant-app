@@ -253,6 +253,36 @@ export default function PreferencesPanel({
             }
           />
         </div>
+
+        <div className="field">
+          <label htmlFor="schedule">Scheduled search (minutes)</label>
+          <p className="hint">
+            0 = manual only. When set (≥5), runs search → match → notify on an interval while the app
+            is open.
+          </p>
+          <input
+            id="schedule"
+            type="number"
+            min={0}
+            max={1440}
+            value={prefs.scheduledSearchMinutes}
+            onChange={(e) =>
+              void onChange({ scheduledSearchMinutes: Number(e.target.value) || 0 })
+            }
+          />
+        </div>
+
+        <div className="field">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={prefs.reminderNotifications}
+              onChange={(e) => void onChange({ reminderNotifications: e.target.checked })}
+            />
+            Desktop notifications for tracker reminders
+          </label>
+          <p className="hint">Checks due reminder dates periodically while the app is open.</p>
+        </div>
       </div>
     </div>
   )
