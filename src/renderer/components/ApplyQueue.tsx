@@ -72,7 +72,9 @@ export default function ApplyQueue({ prefs }: Props) {
       const next = await window.desktopApi.confirmApply(ids)
       setResults(next)
       setMsg(
-        `Confirmed fill: ${next.filter((r) => r.status === 'filled' || r.status === 'needs_you').length} filled (never auto-submitted). Tracker updated.`
+        `Confirmed fill: ${next.filter((r) => r.status === 'filled' || r.status === 'needs_you').length} filled` +
+          (next.some((r) => r.submitted) ? `, ${next.filter((r) => r.submitted).length} submitted` : ' (submit blocked in confirm mode)') +
+          '. Tracker updated.'
       )
       await reload()
     } catch (err) {
@@ -86,8 +88,13 @@ export default function ApplyQueue({ prefs }: Props) {
     <div className="panel wide">
       <h2>Apply queue</h2>
       <p className="lede">
-        Safety mode: <strong>{prefs.applySafety}</strong>. Confirm queues until you approve;
-        unattended fills immediately. Submit is never pressed automatically.
+        Safety: <strong>{prefs.applySafety}</strong>
+        {prefs.applySafety === 'unattended'
+          ? prefs.allowAutoSubmit
+            ? ' · auto-submit ON'
+            : ' · fill only (auto-submit off)'
+          : ' · confirm required; auto-submit blocked'}
+        . Daily cap {prefs.maxActionsPerDay}.
       </p>
 
       <div className="actions">

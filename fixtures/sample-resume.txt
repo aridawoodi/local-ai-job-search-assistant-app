@@ -1,0 +1,22 @@
+Alex Rivera
+alex.rivera@example.com · (312) 555-0199 · Chicago, IL
+https://linkedin.com/in/alexrivera · https://github.com/alexrivera · https://alexrivera.dev
+
+Summary
+Data engineer with 6 years building Python and SQL pipelines on AWS. Focused on reliable ETL, data quality, and analytics platforms for product teams.
+
+Skills
+Python, SQL, Spark, Airflow, dbt, AWS, Kubernetes, PostgreSQL, Snowflake, Terraform
+
+Experience
+Data Engineer — Northwind Labs
+Jan 2021 – Present
+• Built Spark jobs that processed 2 TB/day of event data with 99.5% SLA
+• Reduced pipeline failures 40% by adding Airflow sensors and data quality checks
+
+Analytics Engineer — Contoso Analytics
+Jun 2018 – Dec 2020
+• Migrated 30 dashboards to Snowflake and dbt with documented models
+
+Education
+University of Illinois — B.S. Computer Science, 2018

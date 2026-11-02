@@ -12,8 +12,17 @@ import Onboarding from './components/Onboarding'
 import MatchInbox from './components/MatchInbox'
 import ApplyQueue from './components/ApplyQueue'
 import TrackerPanel from './components/TrackerPanel'
+import AiAssistPanel from './components/AiAssistPanel'
 
-type Tab = 'home' | 'matches' | 'apply' | 'tracker' | 'profile' | 'preferences' | 'modules'
+type Tab =
+  | 'home'
+  | 'matches'
+  | 'apply'
+  | 'ai'
+  | 'tracker'
+  | 'profile'
+  | 'preferences'
+  | 'modules'
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('home')
@@ -85,6 +94,7 @@ export default function App() {
     { id: 'home', label: 'Pipeline' },
     { id: 'matches', label: 'Matches' },
     { id: 'apply', label: 'Apply' },
+    { id: 'ai', label: 'AI' },
     { id: 'tracker', label: 'Tracker' },
     { id: 'profile', label: 'Profile' },
     { id: 'preferences', label: 'Preferences' },
@@ -129,10 +139,12 @@ export default function App() {
           <MatchInbox prefs={prefs} />
         ) : tab === 'apply' ? (
           <ApplyQueue prefs={prefs} />
+        ) : tab === 'ai' ? (
+          <AiAssistPanel prefs={prefs} />
         ) : tab === 'tracker' ? (
           <TrackerPanel />
         ) : tab === 'profile' ? (
-          <ProfilePanel bundle={bundle} />
+          <ProfilePanel bundle={bundle} onReload={reloadProfile} />
         ) : tab === 'preferences' ? (
           <PreferencesPanel
             prefs={prefs}

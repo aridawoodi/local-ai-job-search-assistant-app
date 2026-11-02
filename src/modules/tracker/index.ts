@@ -51,12 +51,18 @@ export function upsertApplication(
   const now = new Date().toISOString()
   const status =
     input.status ||
-    (input.apply?.status === 'failed'
-      ? 'Error - not sent'
-      : input.apply?.status === 'filled' || input.apply?.status === 'needs_you'
-        ? 'Filled'
-        : existing?.status || 'Filled')
-  const stage = input.stage || existing?.stage || 'saved'
+    (input.apply?.submitted || input.apply?.status === 'submitted'
+      ? 'Submitted'
+      : input.apply?.status === 'failed'
+        ? 'Error - not sent'
+        : input.apply?.status === 'filled' || input.apply?.status === 'needs_you'
+          ? 'Filled'
+          : existing?.status || 'Filled')
+  const stage =
+    input.stage ||
+    (input.apply?.submitted || input.apply?.status === 'submitted'
+      ? 'applied'
+      : existing?.stage || 'saved')
 
   const row: ApplicationRow = {
     key: existing?.key || key,

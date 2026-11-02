@@ -1,5 +1,5 @@
 import type { AppPreferences } from './preferences'
-import type { StoredProfileBundle } from './profile'
+import type { AnswerBankEntry, StoredProfileBundle } from './profile'
 import type { OllamaStatus } from './ollama'
 import type { ApplicationRow, TrackerStage, TrackerStatus } from './tracker'
 import type {
@@ -12,6 +12,11 @@ import type {
   SearchMeta,
   SessionCheckResult
 } from './types'
+import type { TailorResult } from '../modules/ai/tailor'
+import type { CoverResult, CoverLength } from '../modules/ai/cover'
+import type { RefineResult, RefineMode } from '../modules/ai/refine'
+import type { ResumeImportResult } from '../modules/resume/import'
+import type { MergeBankResult } from './answer-bank'
 
 export type { OllamaStatus }
 
@@ -36,6 +41,13 @@ export interface TrackerUpdatePatch {
   title?: string
   company?: string
   location?: string
+}
+
+export interface AiJobInput {
+  title?: string
+  company?: string
+  description?: string
+  jobId?: string
 }
 
 export interface DesktopApi {
@@ -73,6 +85,14 @@ export interface DesktopApi {
   getLastJobs: () => Promise<JobListing[]>
   getLastMatches: () => Promise<MatchResult[]>
   getLastApplyResults: () => Promise<ApplyResult[]>
+  importResume: () => Promise<ResumeImportResult & { cancelled?: boolean }>
+  listAnswerBank: () => Promise<AnswerBankEntry[]>
+  upsertAnswerBank: (entries: AnswerBankEntry[]) => Promise<MergeBankResult & { bank: AnswerBankEntry[] }>
+  deleteAnswerBank: (index: number) => Promise<AnswerBankEntry[]>
+  aiTailor: (job: AiJobInput) => Promise<TailorResult>
+  aiCover: (job: AiJobInput, length?: CoverLength) => Promise<CoverResult>
+  aiRefine: (text: string, mode?: RefineMode, question?: string) => Promise<RefineResult>
+  applyTailorToProfile: (summary: string, skillsLine: string) => Promise<StoredProfileBundle>
 }
 
 declare global {

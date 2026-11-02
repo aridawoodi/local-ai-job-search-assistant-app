@@ -8,21 +8,21 @@ Runs alongside the [Job Apply Assistant](https://github.com/aridawoodi/job-apply
 
 **Electron + TypeScript + Playwright (persistent Chrome/Edge profiles) + Ollama**
 
-See [docs/stack-decision.md](docs/stack-decision.md).
+See [docs/stack-decision.md](docs/stack-decision.md) · packaging detail [docs/packaging.md](docs/packaging.md).
 
 | Target | Build |
 |--------|--------|
 | macOS Intel + Apple Silicon | `dmg` + `zip` **universal** |
-| Windows | `nsis` `x64` |
+| Windows | `nsis` + `zip` `x64` |
 
-## Current slice (post-M3)
+## Current slice
 
-- **Match inbox / Apply queue / Tracker** tabs (extension-style workflow surfaces)
-- **Tracker**: stages (`saved`→`offer`), notes, reminders + desktop reminder notify, CSV export; fill results write rows via extension-compatible `jobKey`
-- **LinkedIn search hardening**: richer selectors, scroll-load, guest path before fixture; still needs login for best results
-- **Company career crawl**: Greenhouse / Lever / Ashby-aware scrapers + generic fallback
-- **Scheduled search** pref (minutes; 0 = off) while the app is open
-- Multi-source search + apply-fill from Milestone 3 (confirm / unattended; never auto-submits)
+- **Packaging:** `npm run dist` / `dist:mac` / `dist:win` via `scripts/package.mjs` → artifacts in `release/`
+- **AI tab:** Ollama tailor / cover letter / refine with fact checks
+- **Resume import:** local PDF/DOCX → profile fields + `resumeText` (EEO never inferred)
+- **Answer bank:** similarity merge ≥85% + never-learn filters
+- **Apply submit gate:** confirm mode never submits; unattended submits only when `allowAutoSubmit` is on
+- Match inbox / Apply queue / Tracker; multi-source search; schedule + reminders
 
 ### Chrome ↔ Edge profiles
 
@@ -38,18 +38,20 @@ npm run dev
 ```bash
 npm run typecheck
 npm run build
-npm run dist:mac
-npm run dist:win
+npm run dist:mac    # universal dmg + zip → release/
+npm run dist:win    # nsis + zip (prefer Windows host for NSIS)
+npm run dist:dir    # unpackaged dir smoke
 ```
 
 ### Demo flow
 
 1. First launch → import sample/extension profile (or skip).
-2. Preferences → enable sources; set query/location; optional company career URLs / schedule.
-3. Pipeline → **Open browser** → log into LinkedIn (and others) manually if needed.
-4. **Check sessions** → **Run search → match → notify**.
-5. **Matches** / **Apply** tabs → queue + confirm fill (Submit stays manual).
-6. **Tracker** → stages, notes, reminders, CSV export.
+2. Profile → **Import resume (PDF/DOCX)**; manage answer bank.
+3. Preferences → sources, query, schedule; apply safety + optional auto-submit (unattended only).
+4. Pipeline → **Open browser** → log into LinkedIn/etc. → **Run search → match → notify**.
+5. **AI** tab → tailor / cover / refine against a matched job (Ollama running locally).
+6. **Apply** → queue + confirm fill; submit only if unattended + allowAutoSubmit.
+7. **Tracker** → stages, notes, reminders, CSV.
 
 ### Import a profile
 
@@ -65,11 +67,13 @@ Prefs and profile survive restart under Electron `userData`. Automation cookies 
 ```
 electron/main/     IPC, prefs/profile stores, Ollama, BrowserController, schedule/reminders
 electron/preload/  contextBridge API
-src/renderer/      React UI (Pipeline, Matches, Apply, Tracker, Profile, Prefs)
-src/shared/        Types, prefs, profile schema, tracker schema, IPC contract
-src/modules/       search | match | notify | apply/fill | tracker | import
+src/renderer/      React UI (Pipeline, Matches, Apply, AI, Tracker, Profile, Prefs)
+src/shared/        Types, prefs, profile schema, tracker + answer-bank, IPC contract
+src/modules/       search | match | notify | apply | ai | resume | tracker | import
+scripts/           package.mjs (typecheck → build → electron-builder)
+build/             Icon for installers
 fixtures/          Sample profile + source result HTML + practice apply form
-docs/              Stack decision mirror
+docs/              Stack + packaging
 ```
 
 ## Privacy

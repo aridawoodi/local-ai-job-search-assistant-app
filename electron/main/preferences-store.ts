@@ -19,8 +19,10 @@ export function loadPreferences(): AppPreferences {
     return {
       ...DEFAULT_PREFERENCES,
       ...parsed,
+      allowAutoSubmit: parsed.allowAutoSubmit === true,
       companyCareerUrls:
         parsed.companyCareerUrls ?? DEFAULT_PREFERENCES.companyCareerUrls,
+      tailoringRules: parsed.tailoringRules ?? DEFAULT_PREFERENCES.tailoringRules,
       enabledSources: {
         ...DEFAULT_PREFERENCES.enabledSources,
         ...(parsed.enabledSources || {})
@@ -30,6 +32,7 @@ export function loadPreferences(): AppPreferences {
     return {
       ...DEFAULT_PREFERENCES,
       companyCareerUrls: [...DEFAULT_PREFERENCES.companyCareerUrls],
+      tailoringRules: [...DEFAULT_PREFERENCES.tailoringRules],
       enabledSources: { ...DEFAULT_PREFERENCES.enabledSources }
     }
   }
@@ -46,10 +49,15 @@ export function updatePreferences(partial: Partial<AppPreferences>): AppPreferen
     ...current,
     ...partial,
     companyCareerUrls: partial.companyCareerUrls ?? current.companyCareerUrls,
+    tailoringRules: partial.tailoringRules ?? current.tailoringRules,
     enabledSources: {
       ...current.enabledSources,
       ...(partial.enabledSources || {})
     }
+  }
+  // Confirm mode must never leave auto-submit effective as a surprise.
+  if (next.applySafety === 'confirm') {
+    // keep allowAutoSubmit flag stored but it is ignored at runtime
   }
   return savePreferences(next)
 }

@@ -28,8 +28,14 @@ import {
   recordApplyResults,
   updateApplication
 } from '../../src/modules/tracker'
+import { draftCoverLetter, refineAnswer, tailorResume } from '../../src/modules/ai'
+import { importResumeFromPath } from '../../src/modules/resume'
+import { mergeIntoBank } from '../../src/shared/answer-bank'
+import type { AnswerBankEntry } from '../../src/shared/profile'
 import type { ApplyResult, JobListing, MatchResult, PipelineStatus } from '../../src/shared/types'
 import type { TrackerStage, TrackerStatus } from '../../src/shared/tracker'
+import type { CoverLength } from '../../src/modules/ai/cover'
+import type { RefineMode } from '../../src/modules/ai/refine'
 
 let mainWindow: BrowserWindow | null = null
 let lastJobs: JobListing[] = []
@@ -169,12 +175,15 @@ async function runSearchInternal() {
 async function applyInternal(jobIds: string[], confirmed: boolean) {
   const prefs = loadPreferences()
   const bundle = loadProfileBundle()
+  const willSubmit = prefs.applySafety === 'unattended' && prefs.allowAutoSubmit === true
   setStatus(
     'apply',
     confirmed
-      ? 'Confirm apply — filling forms (no auto-submit)…'
+      ? 'Confirm apply — filling forms (submit blocked in confirm mode)…'
       : prefs.applySafety === 'unattended'
-        ? 'Unattended fill (no auto-submit)…'
+        ? willSubmit
+          ? 'Unattended fill + gated submit…'
+          : 'Unattended fill (allowAutoSubmit off)…'
         : 'Apply — queueing for confirmation…'
   )
   const page = await browserController.getPage(app.getPath('userData'), prefs.browser)
@@ -195,11 +204,30 @@ async function applyInternal(jobIds: string[], confirmed: boolean) {
 
   const filled = results.filter((r) => r.status === 'filled' || r.status === 'needs_you').length
   const pending = results.filter((r) => r.status === 'pending_confirm').length
+  const submitted = results.filter((r) => r.submitted).length
   setStatus(
     'idle',
-    `Apply done: ${filled} filled, ${pending} pending confirm, ${written} tracker row(s), 0 submitted (safety).`
+    `Apply done: ${filled} filled, ${pending} pending confirm, ${submitted} submitted, ${written} tracker row(s).`
   )
   return results
+}
+
+function resolveJobContext(input?: {
+  title?: string
+  company?: string
+  description?: string
+  jobId?: string
+}) {
+  const fromId = input?.jobId ? lastJobs.find((j) => j.id === input.jobId) : undefined
+  const match = input?.jobId ? lastMatches.find((m) => m.jobId === input.jobId) : undefined
+  return {
+    title: input?.title || fromId?.title || match?.title || '',
+    company: input?.company || fromId?.company || match?.company || '',
+    description:
+      input?.description ||
+      fromId?.snippet ||
+      ''
+  }
 }
 
 function checkDueReminders(): { due: ReturnType<typeof dueReminders>; notified: number } {
@@ -489,6 +517,120 @@ function registerIpc(): void {
   ipcMain.handle('ollama:check', async () => {
     const prefs = loadPreferences()
     return checkOllama(prefs.ollamaUrl)
+  })
+
+  ipcMain.handle('resume:import', async () => {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow
+    const { canceled, filePaths } = await dialog.showOpenDialog(win!, {
+      title: 'Import resume (PDF or DOCX)',
+      filters: [
+        { name: 'Resume', extensions: ['pdf', 'docx'] },
+        { name: 'All files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    })
+    if (canceled || !filePaths[0]) {
+      return { ok: false, cancelled: true, message: 'Resume import cancelled.' }
+    }
+    const bundle = loadProfileBundle()
+    const result = await importResumeFromPath(filePaths[0], bundle.profile)
+    if (result.ok && result.profile) {
+      saveProfileBundle({
+        ...bundle,
+        profile: result.profile,
+        resume: result.parsed
+          ? { name: result.parsed.name, kind: result.parsed.kind, importedAt: new Date().toISOString() }
+          : bundle.resume
+      })
+    }
+    return result
+  })
+
+  ipcMain.handle('answerbank:list', () => loadProfileBundle().answerBank || [])
+
+  ipcMain.handle('answerbank:upsert', (_e, entries: AnswerBankEntry[]) => {
+    const bundle = loadProfileBundle()
+    const merged = mergeIntoBank(bundle.answerBank || [], entries || [])
+    saveProfileBundle({ ...bundle, answerBank: merged.bank })
+    return merged
+  })
+
+  ipcMain.handle('answerbank:delete', (_e, index: number) => {
+    const bundle = loadProfileBundle()
+    const bank = [...(bundle.answerBank || [])]
+    if (index >= 0 && index < bank.length) bank.splice(index, 1)
+    saveProfileBundle({ ...bundle, answerBank: bank })
+    return bank
+  })
+
+  ipcMain.handle(
+    'ai:tailor',
+    async (_e, job: { title?: string; company?: string; description?: string; jobId?: string }) => {
+      const prefs = loadPreferences()
+      const bundle = loadProfileBundle()
+      setStatus('idle', 'Tailoring resume with Ollama…')
+      const result = await tailorResume({
+        ollamaUrl: prefs.ollamaUrl,
+        model: prefs.ollamaModel || undefined,
+        profile: bundle.profile,
+        job: resolveJobContext(job),
+        rules: prefs.tailoringRules
+      })
+      setStatus('idle', result.message)
+      return result
+    }
+  )
+
+  ipcMain.handle(
+    'ai:cover',
+    async (
+      _e,
+      job: { title?: string; company?: string; description?: string; jobId?: string },
+      length?: CoverLength
+    ) => {
+      const prefs = loadPreferences()
+      const bundle = loadProfileBundle()
+      setStatus('idle', 'Drafting cover letter with Ollama…')
+      const result = await draftCoverLetter({
+        ollamaUrl: prefs.ollamaUrl,
+        model: prefs.ollamaModel || undefined,
+        profile: bundle.profile,
+        job: resolveJobContext(job),
+        length: length || 'standard'
+      })
+      setStatus('idle', result.message)
+      return result
+    }
+  )
+
+  ipcMain.handle(
+    'ai:refine',
+    async (_e, text: string, mode?: RefineMode, question?: string) => {
+      const prefs = loadPreferences()
+      const bundle = loadProfileBundle()
+      return refineAnswer({
+        ollamaUrl: prefs.ollamaUrl,
+        model: prefs.ollamaModel || undefined,
+        profile: bundle.profile,
+        text,
+        mode,
+        question
+      })
+    }
+  )
+
+  ipcMain.handle('ai:apply-tailor', (_e, summary: string, skillsLine: string) => {
+    const bundle = loadProfileBundle()
+    const skills = String(skillsLine || '')
+      .split(/[,;|]/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const profile = {
+      ...bundle.profile,
+      summary: summary || bundle.profile.summary,
+      skills: skills.length ? skills : bundle.profile.skills
+    }
+    return saveProfileBundle({ ...bundle, profile })
   })
 }
 
