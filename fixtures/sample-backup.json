@@ -1,0 +1,35 @@
+{
+  "kind": "job-apply-assistant-backup",
+  "version": 1,
+  "exportedAt": "2026-11-01T00:00:00.000Z",
+  "profile": {
+    "firstName": "Alex",
+    "lastName": "Chen",
+    "email": "alex.chen@example.com",
+    "phone": "(555) 010-0200",
+    "city": "Austin",
+    "state": "TX",
+    "location": "Austin, TX",
+    "skills": ["TypeScript", "React", "Node.js"],
+    "summary": "Full-stack engineer focused on developer tools.",
+    "education": {
+      "school": "Tech University",
+      "degree": "Bachelor's",
+      "field": "Computer Science"
+    },
+    "eeo": {},
+    "workHistory": [],
+    "educationList": [],
+    "projects": [],
+    "certifications": [],
+    "languages": ["English"]
+  },
+  "answerBank": [
+    { "q": "Years of experience?", "a": "5" }
+  ],
+  "applications": [],
+  "settings": {
+    "ollamaUrl": "http://127.0.0.1:11434",
+    "model": "qwen2.5:3b"
+  }
+}
