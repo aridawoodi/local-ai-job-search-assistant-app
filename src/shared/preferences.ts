@@ -14,6 +14,10 @@ export interface AppPreferences {
   maxActionsPerDay: number
   matchThreshold: number
   ollamaUrl: string
+  /** Indeed search query; empty → derive from profile title/skills. */
+  searchQuery: string
+  /** Indeed location; empty → derive from profile or Remote. */
+  searchLocation: string
   enabledSources: {
     google: boolean
     linkedin: boolean
@@ -30,10 +34,13 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   maxActionsPerDay: 25,
   matchThreshold: 70,
   ollamaUrl: 'http://127.0.0.1:11434',
+  searchQuery: '',
+  searchLocation: '',
   enabledSources: {
-    google: true,
-    linkedin: true,
+    // M2: Indeed is the first live source. Others stay off until drivers ship.
+    google: false,
+    linkedin: false,
     indeed: true,
-    companySites: true
+    companySites: false
   }
 }

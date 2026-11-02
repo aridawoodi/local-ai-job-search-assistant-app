@@ -79,8 +79,8 @@ export default function PreferencesPanel({
         <div className="field">
           <label htmlFor="browser">Browser to drive</label>
           <p className="hint">
-            Playwright will use a dedicated persistent Chrome/Edge profile (Milestone 2). No
-            job-board APIs.
+            Dedicated persistent profile under userData (Chrome and Edge are separate folders —
+            switching browsers means logging in again). No job-board APIs.
           </p>
           <select
             id="browser"
@@ -93,6 +93,30 @@ export default function PreferencesPanel({
             <option value="chrome">Chrome</option>
             <option value="edge">Edge</option>
           </select>
+        </div>
+
+        <div className="field">
+          <label htmlFor="searchQuery">Indeed search query</label>
+          <p className="hint">Empty → derive from profile title + top skills.</p>
+          <input
+            id="searchQuery"
+            type="text"
+            placeholder="e.g. Data Engineer Python"
+            value={prefs.searchQuery}
+            onChange={(e) => void onChange({ searchQuery: e.target.value })}
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor="searchLocation">Indeed location</label>
+          <p className="hint">Empty → profile location or Remote.</p>
+          <input
+            id="searchLocation"
+            type="text"
+            placeholder="e.g. Remote or Chicago, IL"
+            value={prefs.searchLocation}
+            onChange={(e) => void onChange({ searchLocation: e.target.value })}
+          />
         </div>
 
         <div className="field">

@@ -347,3 +347,25 @@ input {
 .kv .v {
   font-weight: 600;
 }
+
+.session-list,
+.job-list ul {
+  margin: 0.75rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.session-list li,
+.job-list li {
+  margin: 0.35rem 0;
+}
+
+.job-list h3 {
+  margin: 1rem 0 0.25rem;
+  font-size: 0.95rem;
+}
+
+.job-list .pill {
+  margin-left: 0.5rem;
+}

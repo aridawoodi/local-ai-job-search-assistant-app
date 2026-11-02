@@ -1,40 +1,49 @@
 const MODULES = [
   {
+    name: 'browser-controller',
+    path: 'electron/main/browser-controller.ts',
+    badge: 'm2',
+    summary:
+      'Playwright persistent Chrome/Edge profiles, Open browser + Check sessions (Indeed/LinkedIn).'
+  },
+  {
     name: 'search',
     path: 'src/modules/search',
+    badge: 'm2',
     summary:
-      'Playwright-driven search across Google, LinkedIn, Indeed, and career sites (Milestone 3).'
+      'First source: Indeed job cards via real browser. LinkedIn/Google Jobs later. Fixture fallback for captcha.'
   },
   {
     name: 'match',
     path: 'src/modules/match',
-    summary: 'Port of extension lib/match.js + threshold prefs (Milestone 4).'
+    badge: 'm2',
+    summary: 'Port of extension lib/match.js + threshold prefs against imported profile.'
   },
   {
     name: 'notify',
     path: 'src/modules/notify',
-    summary: 'Desktop notifications for best-fit jobs (Milestone 4).'
+    badge: 'm2',
+    summary: 'Desktop notifications for best-fit jobs (session dedupe by job id).'
   },
   {
     name: 'apply',
     path: 'src/modules/apply',
-    summary: 'Fill/submit in Chrome/Edge per apply-safety preference (Milestones 5–6).'
+    badge: 'safe stub',
+    summary:
+      'Respects apply-safety; M2 never auto-submits (confirm queues only / unattended skipped).'
   },
   {
     name: 'import',
     path: 'src/modules/import',
+    badge: 'm1',
     summary:
-      'Day-one importers for job-apply-profile.json and kind: job-apply-assistant-backup (Milestone 1).'
-  },
-  {
-    name: 'browser-controller',
-    path: 'electron/main/browser-controller.ts',
-    summary: 'Persistent Chrome/Edge profiles via Playwright (Milestone 2 stub).'
+      'Importers for job-apply-profile.json and kind: job-apply-assistant-backup.'
   },
   {
     name: 'ollama',
     path: 'electron/main/ollama.ts',
-    summary: 'Local Ollama reachability check (Milestone 1).'
+    badge: 'm1',
+    summary: 'Local Ollama reachability check.'
   }
 ] as const
 
@@ -43,17 +52,14 @@ export default function ModulesPanel() {
     <div className="panel">
       <h2>Modules</h2>
       <p className="lede">
-        Scaffold entry points for the full pipeline. Milestone 1 ships shell, prefs, profile
-        import, and Ollama status; later milestones replace stubs.
+        Milestone 2 wires browser sessions, Indeed search, profile match, and desktop notify.
       </p>
       <div className="module-list">
         {MODULES.map((m) => (
           <article key={m.name} className="module">
             <h3>
               {m.name}
-              <span className="badge">
-                {m.name === 'import' || m.name === 'ollama' ? 'm1' : 'stub'}
-              </span>
+              <span className="badge">{m.badge}</span>
             </h3>
             <p>
               <code>{m.path}</code> — {m.summary}

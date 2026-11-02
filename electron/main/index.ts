@@ -11,6 +11,7 @@ import { join } from 'path'
 import { loadPreferences, updatePreferences } from './preferences-store'
 import { loadProfileBundle, saveProfileBundle } from './profile-store'
 import { checkOllama } from './ollama'
+import { browserController } from './browser-controller'
 import { searchJobs } from '../../src/modules/search'
 import { matchJobs } from '../../src/modules/match'
 import { notifyBestFits } from '../../src/modules/notify'
@@ -33,7 +34,6 @@ function setStatus(stage: PipelineStatus['stage'], message: string): void {
 }
 
 function sampleFixturePath(): string {
-  // Dev: project fixtures/; packaged: resources path
   const candidates = [
     join(app.getAppPath(), 'fixtures', 'sample-profile.json'),
     join(__dirname, '../../fixtures/sample-profile.json'),
@@ -94,45 +94,157 @@ async function importFromFilePath(filePath: string) {
   }
 }
 
+function showDesktopNotification(title: string, body: string): void {
+  if (Notification.isSupported()) {
+    new Notification({ title, body }).show()
+  }
+}
+
+async function runSearchInternal() {
+  const prefs = loadPreferences()
+  const bundle = loadProfileBundle()
+  setStatus('browser', 'Opening automation browser…')
+  const page = await browserController.getPage(app.getPath('userData'), prefs.browser)
+  setStatus('search', 'Searching Indeed…')
+  const result = await searchJobs(prefs, {
+    page,
+    profile: bundle.profile,
+    appPath: app.getAppPath(),
+    cwd: process.cwd()
+  })
+  setStatus(
+    'idle',
+    `${result.message} (${result.jobs.length} job(s); query="${result.query}")`
+  )
+  return {
+    jobs: result.jobs,
+    meta: {
+      source: result.source,
+      usedFixture: result.usedFixture,
+      message: result.message,
+      searchUrl: result.searchUrl,
+      query: result.query,
+      location: result.location
+    }
+  }
+}
+
 function registerIpc(): void {
   ipcMain.handle('prefs:get', () => loadPreferences())
   ipcMain.handle('prefs:set', (_e, partial) => updatePreferences(partial))
   ipcMain.handle('profile:get', () => loadProfileBundle())
   ipcMain.handle('pipeline:status', () => pipelineStatus)
 
-  ipcMain.handle('pipeline:search', async () => {
-    setStatus('search', 'Searching job sources via browser (stub)…')
+  ipcMain.handle('browser:status', () => {
     const prefs = loadPreferences()
-    const jobs = await searchJobs(prefs)
-    setStatus('idle', `Search stub returned ${jobs.length} listing(s).`)
-    return jobs
+    const status = browserController.status()
+    return { ...status, preferred: prefs.browser }
+  })
+
+  ipcMain.handle('browser:open', async () => {
+    const prefs = loadPreferences()
+    setStatus('browser', 'Launching Chrome/Edge with persistent profile…')
+    try {
+      const status = await browserController.openStartPage(
+        app.getPath('userData'),
+        prefs.browser
+      )
+      setStatus('idle', status.message)
+      return status
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setStatus('idle', message)
+      throw err
+    }
+  })
+
+  ipcMain.handle('browser:check-sessions', async () => {
+    const prefs = loadPreferences()
+    setStatus('browser', 'Checking Indeed / LinkedIn sessions…')
+    try {
+      const results = await browserController.checkSessions(
+        app.getPath('userData'),
+        prefs.browser
+      )
+      const needs = results.filter((r) => r.needsLogin || !r.ready)
+      setStatus(
+        'idle',
+        needs.length
+          ? `Session check: ${needs.map((n) => n.source).join(', ')} need attention — log in manually in the browser window.`
+          : 'Sessions look ready.'
+      )
+      return results
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setStatus('idle', message)
+      throw err
+    }
+  })
+
+  ipcMain.handle('browser:close', async () => {
+    await browserController.close()
+    setStatus('idle', 'Automation browser closed.')
+    return browserController.status()
+  })
+
+  ipcMain.handle('pipeline:search', async () => {
+    try {
+      return await runSearchInternal()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setStatus('idle', message)
+      throw err
+    }
   })
 
   ipcMain.handle('pipeline:match', async (_e, jobs: JobListing[]) => {
-    setStatus('match', 'Matching against profile (stub)…')
+    setStatus('match', 'Matching against profile…')
     const prefs = loadPreferences()
-    const results = await matchJobs(jobs, prefs)
-    setStatus('idle', `Match stub scored ${results.length} job(s).`)
+    const bundle = loadProfileBundle()
+    const results = await matchJobs(jobs, prefs, bundle.profile)
+    const fits = results.filter((r) => r.fits).length
+    setStatus('idle', `Matched ${results.length} job(s); ${fits} meet threshold ${prefs.matchThreshold}.`)
     return results
   })
 
   ipcMain.handle('pipeline:notify', async (_e, matches) => {
     setStatus('notify', 'Sending desktop notifications…')
-    const result = await notifyBestFits(matches, (title, body) => {
-      if (Notification.isSupported()) {
-        new Notification({ title, body }).show()
-      }
-    })
-    setStatus('idle', `Notified ${result.notified} best-fit job(s).`)
+    const result = await notifyBestFits(matches, showDesktopNotification)
+    setStatus(
+      'idle',
+      `Notified ${result.notified} best-fit job(s)` +
+        (result.skippedDuplicate ? ` (${result.skippedDuplicate} duplicate(s) skipped).` : '.')
+    )
     return result
   })
 
   ipcMain.handle('pipeline:apply', async (_e, jobIds: string[]) => {
-    setStatus('apply', 'Apply workflow (stub)…')
+    setStatus('apply', 'Apply (M2: no auto-submit)…')
     const prefs = loadPreferences()
     const results = await applyToJobs(jobIds, prefs)
-    setStatus('idle', 'Apply stub complete.')
+    setStatus('idle', 'Apply skipped — M2 is search + match + notify only.')
     return results
+  })
+
+  ipcMain.handle('pipeline:run', async () => {
+    try {
+      const { jobs, meta } = await runSearchInternal()
+      setStatus('match', 'Matching…')
+      const prefs = loadPreferences()
+      const bundle = loadProfileBundle()
+      const matches = await matchJobs(jobs, prefs, bundle.profile)
+      setStatus('notify', 'Notifying best fits…')
+      const notify = await notifyBestFits(matches, showDesktopNotification)
+      setStatus(
+        'idle',
+        `Pipeline done: ${jobs.length} jobs, ${matches.filter((m) => m.fits).length} fits, ${notify.notified} notified.`
+      )
+      return { jobs, matches, notified: notify.notified, meta }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setStatus('idle', message)
+      throw err
+    }
   })
 
   ipcMain.handle('import:extension', async () => {
@@ -190,5 +302,6 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  void browserController.close()
   if (process.platform !== 'darwin') app.quit()
 })
