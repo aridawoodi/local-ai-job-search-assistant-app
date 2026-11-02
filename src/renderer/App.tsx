@@ -74,7 +74,7 @@ export default function App() {
             <div className="brand-mark" aria-hidden />
             <div>
               <h1>Job Search Assistant</h1>
-              <span>Desktop · Mac &amp; Windows</span>
+              <span>Local AI · Mac &amp; Windows</span>
             </div>
           </div>
         </header>
@@ -108,7 +108,7 @@ export default function App() {
           <div className="brand-mark" aria-hidden />
           <div>
             <h1>Job Search Assistant</h1>
-            <span>Electron · Playwright · Ollama</span>
+            <span>Local search · match · apply</span>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

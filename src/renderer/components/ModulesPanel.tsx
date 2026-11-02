@@ -28,9 +28,9 @@ const MODULES = [
   {
     name: 'apply',
     path: 'src/modules/apply',
-    badge: 'm6',
+    badge: 'm6/m7',
     summary:
-      'Profile autofill + gated submit: confirm never submits; unattended submits only when allowAutoSubmit is on.'
+      'Greenhouse/Lever/Ashby + Workday basic + LinkedIn Easy Apply depth; multi-step Next sessions; gated submit.'
   },
   {
     name: 'ai',
@@ -58,17 +58,17 @@ const MODULES = [
       'Extension-compatible stages/status/jobKey, notes, reminders, CSV export, import from backups.'
   },
   {
-    name: 'import',
+    name: 'import/export',
     path: 'src/modules/import',
-    badge: 'm1',
+    badge: 'm1/m7',
     summary:
-      'Importers for job-apply-profile.json and kind: job-apply-assistant-backup (incl. applications).'
+      'Import + export round-trip for job-apply-profile.json and kind: job-apply-assistant-backup.'
   },
   {
     name: 'packaging',
     path: 'scripts/package.mjs + electron-builder',
     badge: 'm1/m7',
-    summary: 'Mac universal dmg/zip + Windows nsis/zip via npm run dist / dist:mac / dist:win.'
+    summary: 'Mac universal dmg/zip + Windows nsis/zip; branded icon; NSIS choose-dir installer.'
   }
 ] as const
 
@@ -77,7 +77,8 @@ export default function ModulesPanel() {
     <div className="panel">
       <h2>Modules</h2>
       <p className="lede">
-        Packaging + AI parity + resume/answer-bank + gated submit on top of post-M3 tracker/search.
+        Must-row parity closeout: Workday/Easy Apply/multi-step, backup export, schedule harden,
+        practice fixtures, packaging polish.
       </p>
       <div className="module-list">
         {MODULES.map((m) => (

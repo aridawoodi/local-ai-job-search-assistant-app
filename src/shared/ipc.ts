@@ -81,7 +81,10 @@ export interface DesktopApi {
   updateApplication: (key: string, patch: TrackerUpdatePatch) => Promise<ApplicationRow | null>
   deleteApplication: (key: string) => Promise<ApplicationRow[]>
   exportApplicationsCsv: () => Promise<{ ok: boolean; path?: string; cancelled?: boolean; message: string }>
+  exportProfile: () => Promise<{ ok: boolean; path?: string; cancelled?: boolean; message: string }>
+  exportFullBackup: () => Promise<{ ok: boolean; path?: string; cancelled?: boolean; message: string }>
   checkReminders: () => Promise<{ due: ApplicationRow[]; notified: number }>
+  runScheduledNow: () => Promise<{ ok: boolean; message: string }>
   getLastJobs: () => Promise<JobListing[]>
   getLastMatches: () => Promise<MatchResult[]>
   getLastApplyResults: () => Promise<ApplyResult[]>

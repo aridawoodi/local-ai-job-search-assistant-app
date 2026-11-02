@@ -54,6 +54,7 @@ export interface ApplyResult {
   needsYouCount?: number
   fields?: ApplyFieldReport[]
   submitted?: boolean
+  stepsAdvanced?: number
 }
 
 export type PipelineStage = 'idle' | 'search' | 'match' | 'notify' | 'apply' | 'browser'

@@ -28,6 +28,10 @@ interface InjectedResult {
 
 /** Detect ATS adapter name from URL (mirrors extension sites.js matchers). */
 export function detectAdapter(url: string): string {
+  const lower = String(url || '').toLowerCase()
+  if (/workday-basic\.html|myworkdayjobs\.com|myworkday\.com/.test(lower)) return 'Workday'
+  if (/linkedin-easy-apply\.html|linkedin\.com/.test(lower)) return 'LinkedIn Easy Apply'
+  if (/multi-step-apply\.html/.test(lower)) return 'Generic'
   try {
     const host = new URL(url).hostname
     if (/(^|\.)greenhouse\.io$/.test(host)) return 'Greenhouse'
@@ -147,15 +151,23 @@ export async function fillApplicationPage(
       const wrap = el.closest('label')
       if (wrap) return textOf(wrap)
       const box = el.closest(
-        '.application-question, [data-automation-id^="formField"], .field, .form-group, [class*="field" i], [class*="question" i]'
+        '.application-question, [data-automation-id^="formField"], .field, .form-group, [class*="field" i], [class*="question" i], [data-automation-id]'
       )
       if (box) {
         const lab = box.querySelector('label, .application-label, legend, [class*="label" i]')
         if (lab) return textOf(lab)
       }
+      // Workday often encodes meaning in data-automation-id (e.g. legalNameSection_firstName).
+      const autoId = el.getAttribute('data-automation-id') || ''
+      const autoHuman = autoId
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b(section|form field|legal name section)\b/gi, ' ')
+        .trim()
       return (
         el.getAttribute('aria-label') ||
         el.getAttribute('placeholder') ||
+        autoHuman ||
         el.getAttribute('name') ||
         el.id ||
         ''
@@ -348,9 +360,15 @@ export async function fillApplicationPage(
       formRoot =
         document.querySelector('.ashby-application-form-container, [class*="application-form" i], form') ||
         document
-    } else if (/linkedin\.com/.test(host)) {
+    } else if (/(^|\.)myworkdayjobs\.com$|(^|\.)myworkday\.com$|workday-basic/i.test(host + location.pathname + location.href)) {
+      // Workday basic: data-automation-id form shells (partial — date pickers / repeats weak).
       formRoot =
-        document.querySelector('.jobs-easy-apply-modal, [data-test-modal-id="easy-apply-modal"]') ||
+        document.querySelector(
+          '[data-automation-id="jobApplicationPage"], [data-automation-id="applyFlowPage"], [data-automation-id="mainContent"], #mainContent, form'
+        ) || document
+    } else if (/linkedin\.com|linkedin-easy-apply/i.test(host + location.href)) {
+      formRoot =
+        document.querySelector('.jobs-easy-apply-modal.open, .jobs-easy-apply-modal, [data-test-modal-id="easy-apply-modal"]') ||
         Array.from(document.querySelectorAll('[role="dialog"]')).find((d) =>
           /apply to|easy apply/i.test(textOf(d).slice(0, 200))
         ) ||

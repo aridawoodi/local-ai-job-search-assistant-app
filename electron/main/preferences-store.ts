@@ -20,6 +20,15 @@ export function loadPreferences(): AppPreferences {
       ...DEFAULT_PREFERENCES,
       ...parsed,
       allowAutoSubmit: parsed.allowAutoSubmit === true,
+      allowAdvanceSteps:
+        parsed.allowAdvanceSteps == null
+          ? DEFAULT_PREFERENCES.allowAdvanceSteps
+          : parsed.allowAdvanceSteps === true,
+      scheduledIncludeApply: parsed.scheduledIncludeApply === true,
+      maxFormSteps:
+        typeof parsed.maxFormSteps === 'number' && parsed.maxFormSteps > 0
+          ? parsed.maxFormSteps
+          : DEFAULT_PREFERENCES.maxFormSteps,
       companyCareerUrls:
         parsed.companyCareerUrls ?? DEFAULT_PREFERENCES.companyCareerUrls,
       tailoringRules: parsed.tailoringRules ?? DEFAULT_PREFERENCES.tailoringRules,

@@ -192,3 +192,10 @@ export async function importExtensionProfileFromText(
 export function skipExtensionImportMessage(): string {
   return 'Extension import skipped. You can import a profile later from Preferences.'
 }
+
+export {
+  buildProfileExport,
+  buildFullBackup,
+  serializeExport
+} from './export'
+export type { ProfileExportDoc, FullBackupDoc } from './export'

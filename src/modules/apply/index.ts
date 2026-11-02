@@ -6,6 +6,7 @@ import type { UserProfile } from '../../shared/profile'
 import type { ApplyResult, JobListing } from '../../shared/types'
 import { fillApplicationPage } from './fill'
 import { canAutoSubmit, maybeClickSubmit } from './submit'
+import { runMultiStepSession } from './steps'
 
 export interface ApplyContext {
   page: Page
@@ -26,11 +27,11 @@ export function getPendingConfirmIds(): string[] {
 }
 
 /**
- * Apply-fill (+ optional gated submit) workflow.
+ * Apply-fill (+ optional multi-step + gated submit) workflow.
  *
  * Safety:
- * - Confirm mode: queue until user confirms; fill only; NEVER submit even if allowAutoSubmit.
- * - Unattended: fill immediately; submit only when allowAutoSubmit is true.
+ * - Confirm mode: queue until user confirms; fill (+ optional Next) only; NEVER submit.
+ * - Unattended: fill immediately; advance steps when allowAdvanceSteps; submit only when allowAutoSubmit.
  * - Daily maxActionsPerDay soft-caps automated fills/submits.
  */
 export async function applyToJobs(
@@ -102,32 +103,66 @@ export async function applyToJobs(
       await ctx.page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
       await new Promise((r) => setTimeout(r, 800))
 
-      const fill = await fillApplicationPage(ctx.page, ctx.profile)
       pendingConfirm.delete(jobId)
       actions++
 
       let submitted = false
-      let submitMsg = ''
-      if (fill.formFound && canAutoSubmit(prefs)) {
-        if (actions >= prefs.maxActionsPerDay) {
-          submitMsg = ' Fill done; submit skipped (daily cap).'
-        } else {
-          const sub = await maybeClickSubmit(ctx.page, prefs)
-          submitted = sub.submitted
-          submitMsg = ` ${sub.message}`
-          if (sub.attempted) actions++
+      let filledCount = 0
+      let needsYouCount = 0
+      let fields: ApplyResult['fields'] = []
+      let adapter = 'Generic'
+      let formFound = false
+      let stepsAdvanced = 0
+      let message = ''
+
+      const useSteps =
+        prefs.allowAdvanceSteps ||
+        /linkedin|easy-apply|multi-step|workday/i.test(targetUrl + ' ' + (job.title || ''))
+
+      if (useSteps) {
+        const session = await runMultiStepSession(ctx.page, ctx.profile, prefs)
+        filledCount = session.filledCount
+        needsYouCount = session.needsYouCount
+        fields = session.fields
+        adapter = session.adapter
+        formFound = session.formFound
+        stepsAdvanced = session.stepsAdvanced
+        submitted = session.submitted
+        message = session.message
+        if (session.stepsAdvanced > 0) actions += session.stepsAdvanced
+        if (session.submitted) actions++
+      } else {
+        const fill = await fillApplicationPage(ctx.page, ctx.profile)
+        filledCount = fill.filledCount
+        needsYouCount = fill.needsYouCount
+        fields = fill.fields
+        adapter = fill.adapter
+        formFound = fill.formFound
+        message = fill.message
+
+        let submitMsg = ''
+        if (fill.formFound && canAutoSubmit(prefs)) {
+          if (actions >= prefs.maxActionsPerDay) {
+            submitMsg = ' Fill done; submit skipped (daily cap).'
+          } else {
+            const sub = await maybeClickSubmit(ctx.page, prefs)
+            submitted = sub.submitted
+            submitMsg = ` ${sub.message}`
+            if (sub.attempted) actions++
+          }
+        } else if (prefs.applySafety === 'confirm') {
+          submitMsg = ' Confirm mode: submit not pressed (requires user).'
+        } else if (!prefs.allowAutoSubmit) {
+          submitMsg = ' Unattended fill only (allowAutoSubmit off).'
         }
-      } else if (prefs.applySafety === 'confirm') {
-        submitMsg = ' Confirm mode: submit not pressed (requires user).'
-      } else if (!prefs.allowAutoSubmit) {
-        submitMsg = ' Unattended fill only (allowAutoSubmit off).'
+        message = `${fill.message}${submitMsg}`
       }
 
       const status = submitted
         ? ('submitted' as const)
-        : !fill.formFound
+        : !formFound
           ? ('failed' as const)
-          : fill.needsYouCount > 0
+          : needsYouCount > 0
             ? ('needs_you' as const)
             : ('filled' as const)
 
@@ -135,13 +170,14 @@ export async function applyToJobs(
         jobId,
         status,
         message:
-          `${prefs.applySafety === 'unattended' ? 'Unattended' : 'Confirmed'} fill: ${fill.message}${submitMsg}`,
+          `${prefs.applySafety === 'unattended' ? 'Unattended' : 'Confirmed'}: ${message}`,
         url: targetUrl,
-        adapter: fill.adapter,
-        filledCount: fill.filledCount,
-        needsYouCount: fill.needsYouCount,
-        fields: fill.fields,
-        submitted
+        adapter,
+        filledCount,
+        needsYouCount,
+        fields,
+        submitted,
+        stepsAdvanced
       })
     } catch (err) {
       results.push({
@@ -171,15 +207,42 @@ function resolveApplyUrl(job: JobListing, ctx: ApplyContext): string {
     /fixture|example\.com|localhost|\/example\//i.test(job.url) ||
     /fixture/i.test(job.id) ||
     /example corp/i.test(job.company)
-  if (demo) {
-    const practice = defaultPracticeFormPath(ctx.appPath, ctx.cwd)
-    if (practice) return `file://${practice}`
+
+  if (demo || !/^https?:\/\//i.test(job.url)) {
+    const keyed = pickPracticeFixture(job, ctx)
+    if (keyed) return `file://${keyed}`
   }
   if (/^https?:\/\//i.test(job.url)) return job.url
 
   const practice = defaultPracticeFormPath(ctx.appPath, ctx.cwd)
   if (practice) return `file://${practice}`
   return job.url
+}
+
+/** Choose Workday / Easy Apply / multi-step / generic practice HTML from job hints. */
+export function pickPracticeFixture(job: JobListing, ctx: ApplyContext): string | null {
+  const blob = `${job.id} ${job.title} ${job.company} ${job.url} ${job.source}`.toLowerCase()
+  const map: [RegExp, string][] = [
+    [/workday/, 'workday-basic.html'],
+    [/easy.?apply|linkedin/, 'linkedin-easy-apply.html'],
+    [/multi.?step|wizard|greenhouse/, 'multi-step-apply.html']
+  ]
+  for (const [re, file] of map) {
+    if (re.test(blob)) {
+      const p = fixturePath(file, ctx)
+      if (p) return p
+    }
+  }
+  return defaultPracticeFormPath(ctx.appPath, ctx.cwd)
+}
+
+function fixturePath(name: string, ctx: ApplyContext): string | null {
+  const candidates = [
+    join(ctx.appPath, 'fixtures', name),
+    join(ctx.cwd, 'fixtures', name),
+    join(__dirname, '../../../fixtures', name)
+  ]
+  return candidates.find((p) => existsSync(p)) || null
 }
 
 export function defaultPracticeFormPath(appPath: string, cwd: string): string | null {
@@ -192,3 +255,9 @@ export function defaultPracticeFormPath(appPath: string, cwd: string): string | 
 }
 
 export { canAutoSubmit, maybeClickSubmit } from './submit'
+export {
+  runMultiStepSession,
+  clickNextOrContinue,
+  ensureEasyApplyModal,
+  canAdvanceSteps
+} from './steps'

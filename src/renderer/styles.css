@@ -1,6 +1,7 @@
 :root {
   --indigo: #4f46e5;
   --violet: #7c3aed;
+  --emerald: #10b981;
   --bg: #0f1220;
   --bg-elevated: #171b2e;
   --bg-soft: #222741;
@@ -9,11 +10,12 @@
   --muted: #9aa3c2;
   --accent: var(--indigo);
   --accent-2: var(--violet);
-  --success: #10b981;
+  --success: var(--emerald);
   --warning: #f59e0b;
   --danger: #f43f5e;
   --radius: 12px;
-  --font: 'Segoe UI', 'Helvetica Neue', system-ui, sans-serif;
+  --font-display: 'Avenir Next', 'Segoe UI Semibold', 'Helvetica Neue', sans-serif;
+  --font: 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
   --gradient-brand: linear-gradient(135deg, var(--indigo), var(--violet));
 }
 
@@ -93,18 +95,34 @@ textarea {
 }
 
 .brand-mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   background: var(--gradient-brand);
   box-shadow: 0 8px 24px rgba(79, 70, 229, 0.35);
+  flex-shrink: 0;
+}
+
+.brand-mark::after {
+  content: 'J';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #fff;
+  letter-spacing: -0.04em;
 }
 
 .brand h1 {
   margin: 0;
-  font-size: 1.15rem;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .brand span {

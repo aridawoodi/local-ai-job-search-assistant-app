@@ -12,6 +12,19 @@ export interface AppPreferences {
    * Submit/Apply control after fill. Confirm mode always ignores this (never auto-submits).
    */
   allowAutoSubmit: boolean
+  /**
+   * When true, after fill the apply pipeline may click Next/Continue and re-fill
+   * subsequent steps (multi-step + Easy Apply wizards). Confirm mode may advance
+   * steps but still never auto-submits.
+   */
+  allowAdvanceSteps: boolean
+  /** Soft cap on Next/Continue advances per application (multi-step sessions). */
+  maxFormSteps: number
+  /**
+   * When scheduled search runs and applySafety is unattended, also queue best-fit
+   * jobs into the apply pipeline (still respects allowAutoSubmit / caps).
+   */
+  scheduledIncludeApply: boolean
   browser: BrowserPreference
   /** First-run: prompt until imported or skipped. */
   extensionImportStatus: 'not_started' | 'imported' | 'skipped'
@@ -49,6 +62,9 @@ export interface AppPreferences {
 export const DEFAULT_PREFERENCES: AppPreferences = {
   applySafety: 'confirm',
   allowAutoSubmit: false,
+  allowAdvanceSteps: true,
+  maxFormSteps: 6,
+  scheduledIncludeApply: false,
   browser: 'either',
   extensionImportStatus: 'not_started',
   onboardingComplete: false,

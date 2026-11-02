@@ -17,7 +17,10 @@ import { matchJobs } from '../../src/modules/match'
 import { notifyBestFits } from '../../src/modules/notify'
 import { applyToJobs, confirmAndFill } from '../../src/modules/apply'
 import {
+  buildFullBackup,
+  buildProfileExport,
   parseExtensionExport,
+  serializeExport,
   skipExtensionImportMessage
 } from '../../src/modules/import'
 import {
@@ -47,6 +50,7 @@ let pipelineStatus: PipelineStatus = {
   updatedAt: new Date().toISOString()
 }
 let scheduleTimer: ReturnType<typeof setInterval> | null = null
+let scheduleKickTimer: ReturnType<typeof setTimeout> | null = null
 let reminderTimer: ReturnType<typeof setInterval> | null = null
 const notifiedReminders = new Set<string>()
 
@@ -250,7 +254,14 @@ function checkDueReminders(): { due: ReturnType<typeof dueReminders>; notified: 
   return { due, notified }
 }
 
-async function runScheduledPipeline(): Promise<void> {
+let scheduleRunning = false
+let lastScheduleAt: string | null = null
+
+async function runScheduledPipeline(): Promise<{ ok: boolean; message: string }> {
+  if (scheduleRunning) {
+    return { ok: false, message: 'Scheduled pipeline already running.' }
+  }
+  scheduleRunning = true
   try {
     const { jobs, meta, history } = await runSearchInternal()
     const prefs = loadPreferences()
@@ -258,14 +269,38 @@ async function runScheduledPipeline(): Promise<void> {
     const matches = await matchJobs(jobs, prefs, bundle.profile)
     lastMatches = matches
     const notify = await notifyBestFits(matches, showDesktopNotification)
-    setStatus(
-      'idle',
-      `Scheduled run: ${jobs.length} jobs, ${matches.filter((m) => m.fits).length} fits, ${notify.notified} notified. (${meta.message})`
+
+    let applyNote = ''
+    if (prefs.scheduledIncludeApply && prefs.applySafety === 'unattended') {
+      const fitIds = matches.filter((m) => m.fits).map((m) => m.jobId).slice(0, 5)
+      if (fitIds.length) {
+        setStatus('apply', `Scheduled unattended apply for ${fitIds.length} best-fit job(s)…`)
+        const applied = await applyInternal(fitIds, false)
+        const filled = applied.filter((r) => r.status === 'filled' || r.status === 'needs_you' || r.submitted).length
+        applyNote = `; applied ${filled}/${fitIds.length}`
+      } else {
+        applyNote = '; no fits to apply'
+      }
+    } else if (prefs.scheduledIncludeApply && prefs.applySafety === 'confirm') {
+      applyNote = '; scheduled apply skipped (confirm mode — use Apply queue)'
+    }
+
+    lastScheduleAt = new Date().toISOString()
+    const message = `Scheduled run ${lastScheduleAt}: ${jobs.length} jobs, ${matches.filter((m) => m.fits).length} fits, ${notify.notified} notified${applyNote}. (${meta.message})`
+    setStatus('idle', message)
+    showDesktopNotification(
+      'Scheduled job search finished',
+      `${jobs.length} jobs · ${matches.filter((m) => m.fits).length} fits · ${notify.notified} notified${applyNote}`
     )
     void history
+    return { ok: true, message }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     setStatus('idle', `Scheduled search failed: ${message}`)
+    showDesktopNotification('Scheduled job search failed', message.slice(0, 180))
+    return { ok: false, message }
+  } finally {
+    scheduleRunning = false
   }
 }
 
@@ -274,11 +309,23 @@ function refreshScheduleTimer(): void {
     clearInterval(scheduleTimer)
     scheduleTimer = null
   }
+  if (scheduleKickTimer) {
+    clearTimeout(scheduleKickTimer)
+    scheduleKickTimer = null
+  }
   const mins = loadPreferences().scheduledSearchMinutes || 0
   if (mins > 0) {
+    const intervalMs = Math.max(mins, 5) * 60_000
     scheduleTimer = setInterval(() => {
       void runScheduledPipeline()
-    }, Math.max(mins, 5) * 60_000)
+    }, intervalMs)
+    // Kick a first run shortly after enabling so end-to-end schedule is verifiable.
+    scheduleKickTimer = setTimeout(() => {
+      scheduleKickTimer = null
+      if (loadPreferences().scheduledSearchMinutes > 0) {
+        void runScheduledPipeline()
+      }
+    }, 8_000)
   }
 }
 
@@ -473,6 +520,48 @@ function registerIpc(): void {
     return { ok: true, path: filePath, message: `Exported ${bundle.applications.length} row(s).` }
   })
 
+  ipcMain.handle('export:profile', async () => {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow
+    const bundle = loadProfileBundle()
+    const doc = buildProfileExport(bundle)
+    const { canceled, filePath } = await dialog.showSaveDialog(win!, {
+      title: 'Export profile (job-apply-profile.json)',
+      defaultPath: 'job-apply-profile.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    })
+    if (canceled || !filePath) {
+      return { ok: false, cancelled: true, message: 'Export cancelled.' }
+    }
+    writeFileSync(filePath, serializeExport(doc), 'utf8')
+    return {
+      ok: true,
+      path: filePath,
+      message: `Exported profile for re-import (extension-compatible).`
+    }
+  })
+
+  ipcMain.handle('export:backup', async () => {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow
+    const bundle = loadProfileBundle()
+    const doc = buildFullBackup(bundle)
+    const { canceled, filePath } = await dialog.showSaveDialog(win!, {
+      title: 'Export full backup (job-apply-assistant-backup)',
+      defaultPath: 'job-apply-assistant-backup.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    })
+    if (canceled || !filePath) {
+      return { ok: false, cancelled: true, message: 'Export cancelled.' }
+    }
+    writeFileSync(filePath, serializeExport(doc), 'utf8')
+    return {
+      ok: true,
+      path: filePath,
+      message: `Exported full backup (profile, answer bank, ${bundle.applications.length} application(s), settings).`
+    }
+  })
+
+  ipcMain.handle('pipeline:schedule-now', async () => runScheduledPipeline())
+
   ipcMain.handle('tracker:check-reminders', () => checkDueReminders())
 
   ipcMain.handle('import:extension', async () => {
@@ -650,6 +739,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (scheduleTimer) clearInterval(scheduleTimer)
+  if (scheduleKickTimer) clearTimeout(scheduleKickTimer)
   if (reminderTimer) clearInterval(reminderTimer)
   void browserController.close()
   if (process.platform !== 'darwin') app.quit()
