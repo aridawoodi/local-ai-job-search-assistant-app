@@ -14,6 +14,11 @@ const api: DesktopApi = {
   notifyBestFits: (matches: MatchResult[]) =>
     ipcRenderer.invoke('pipeline:notify', matches),
   runApply: (jobIds: string[]) => ipcRenderer.invoke('pipeline:apply', jobIds),
+  runPipeline: () => ipcRenderer.invoke('pipeline:run'),
+  openBrowser: () => ipcRenderer.invoke('browser:open'),
+  checkSessions: () => ipcRenderer.invoke('browser:check-sessions'),
+  browserStatus: () => ipcRenderer.invoke('browser:status'),
+  closeBrowser: () => ipcRenderer.invoke('browser:close'),
   importExtensionProfile: () => ipcRenderer.invoke('import:extension'),
   importSampleProfile: () => ipcRenderer.invoke('import:sample'),
   skipExtensionImport: () => ipcRenderer.invoke('import:skip'),
