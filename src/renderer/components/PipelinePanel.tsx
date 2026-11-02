@@ -12,6 +12,7 @@ import type {
   SessionCheckResult
 } from '../../shared/types'
 import PauseBanner from './PauseBanner'
+import EmptyState from './EmptyState'
 
 interface Props {
   prefs: AppPreferences
@@ -289,6 +290,19 @@ export default function PipelinePanel({ prefs }: Props) {
         onDismiss={() => void dismissPause()}
         onOpenBrowser={() => void openBrowser()}
       />
+
+      {!jobs.length && !history.length && !pause.active ? (
+        <EmptyState
+          title="First-run checklist"
+          body="Nothing searched yet. Follow these steps — captchas or login walls pause the pipeline instead of burning sessions."
+          steps={[
+            'Open browser → sign into LinkedIn / Indeed in the automation window if you need live results.',
+            'Check sessions — LinkedIn/login/captcha pauses show a Resume banner here.',
+            'Run search → match → notify (falls back to fixtures when a board blocks scraping).',
+            `Apply stays in ${prefs.applySafety} mode — confirm never auto-submits.`
+          ]}
+        />
+      ) : null}
 
       <div className="actions">
         <button className="btn primary" disabled={busy} onClick={() => void openBrowser()}>

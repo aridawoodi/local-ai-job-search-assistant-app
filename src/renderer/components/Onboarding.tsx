@@ -14,7 +14,7 @@ export default function Onboarding({ onDone }: Props) {
     try {
       const result = await window.desktopApi.importExtensionProfile()
       if (result.cancelled) {
-        setMessage('Import cancelled.')
+        setMessage('Import cancelled — pick a file, load the sample, or skip.')
         return
       }
       setMessage(result.message)
@@ -48,22 +48,47 @@ export default function Onboarding({ onDone }: Props) {
     <div className="onboarding">
       <div className="onboarding-card">
         <div className="mark" aria-hidden />
-        <h2>Job Search Assistant</h2>
+        <h2>Welcome — set up once</h2>
         <p className="lede">
-          Desktop search → match → notify → apply via a real browser. Import your Job Apply
-          Assistant profile now, or skip and set up later.
+          Local search → match → notify → apply via a real Chrome/Edge window. Defaults stay safe:
+          confirm-before-apply, no auto-submit.
         </p>
-        <div className="actions" style={{ marginTop: 0 }}>
-          <button className="btn primary" disabled={busy} onClick={() => void importFile()}>
-            Import extension profile
+
+        <ol className="onboarding-steps">
+          <li>
+            <strong>Bring a profile</strong> — extension export, sample fixture, or skip and import
+            later.
+          </li>
+          <li>
+            <strong>Open the automation browser</strong> — log into LinkedIn/etc. once in that
+            window (never typed by the app).
+          </li>
+          <li>
+            <strong>Run Pipeline</strong> — search → match → notify, then Apply with confirmation.
+          </li>
+        </ol>
+
+        <div className="choice-stack">
+          <button className="btn primary choice" disabled={busy} onClick={() => void importFile()}>
+            <span className="choice-title">Import extension profile</span>
+            <span className="choice-hint">
+              Open <code>job-apply-profile.json</code> or a full backup from Job Apply Assistant.
+            </span>
           </button>
-          <button className="btn" disabled={busy} onClick={() => void importSample()}>
-            Load sample profile
+          <button className="btn choice" disabled={busy} onClick={() => void importSample()}>
+            <span className="choice-title">Load sample profile</span>
+            <span className="choice-hint">
+              Uses <code>fixtures/sample-profile.json</code> (Jordan Rivera) for a safe walkthrough.
+            </span>
           </button>
-          <button className="btn" disabled={busy} onClick={() => void skip()}>
-            Skip for now
+          <button className="btn choice" disabled={busy} onClick={() => void skip()}>
+            <span className="choice-title">Skip for now</span>
+            <span className="choice-hint">
+              Continue empty — import anytime under Preferences or Profile → resume.
+            </span>
           </button>
         </div>
+
         {message ? <pre className="status">{message}</pre> : null}
       </div>
     </div>
