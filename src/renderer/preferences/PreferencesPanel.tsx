@@ -21,6 +21,9 @@ export default function PreferencesPanel({
 }: Props) {
   const [ollama, setOllama] = useState<OllamaStatus | null>(null)
   const [importMsg, setImportMsg] = useState('')
+  const [careerUrlsText, setCareerUrlsText] = useState(
+    (prefs.companyCareerUrls || []).join('\n')
+  )
 
   async function refreshOllama() {
     setOllama(await window.desktopApi.checkOllama())
@@ -29,6 +32,10 @@ export default function PreferencesPanel({
   useEffect(() => {
     void refreshOllama()
   }, [prefs.ollamaUrl])
+
+  useEffect(() => {
+    setCareerUrlsText((prefs.companyCareerUrls || []).join('\n'))
+  }, [prefs.companyCareerUrls])
 
   async function onImport() {
     const result = await window.desktopApi.importExtensionProfile()
@@ -53,6 +60,15 @@ export default function PreferencesPanel({
     setImportMsg('Import skipped — you can import anytime.')
   }
 
+  function toggleSource(
+    key: keyof AppPreferences['enabledSources'],
+    value: boolean
+  ) {
+    void onChange({
+      enabledSources: { ...prefs.enabledSources, [key]: value }
+    })
+  }
+
   return (
     <div className="panel">
       <h2>Preferences</h2>
@@ -63,7 +79,10 @@ export default function PreferencesPanel({
       <div className="grid">
         <div className="field">
           <label htmlFor="applySafety">Apply safety</label>
-          <p className="hint">Confirm before each submit, or run unattended after setup.</p>
+          <p className="hint">
+            Confirm before each fill, or unattended fill after setup. Neither mode auto-submits
+            applications in this milestone.
+          </p>
           <select
             id="applySafety"
             value={prefs.applySafety}
@@ -72,7 +91,7 @@ export default function PreferencesPanel({
             }
           >
             <option value="confirm">Confirm before apply</option>
-            <option value="unattended">Unattended after setup</option>
+            <option value="unattended">Unattended fill (no auto-submit)</option>
           </select>
         </div>
 
@@ -96,7 +115,31 @@ export default function PreferencesPanel({
         </div>
 
         <div className="field">
-          <label htmlFor="searchQuery">Indeed search query</label>
+          <label>Search sources</label>
+          <p className="hint">Toggle drivers. Rate limit between sources: {prefs.sourceRateLimitMs}ms.</p>
+          <div className="source-toggles">
+            {(
+              [
+                ['indeed', 'Indeed'],
+                ['google', 'Google Jobs'],
+                ['linkedin', 'LinkedIn'],
+                ['companySites', 'Company career sites']
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="check">
+                <input
+                  type="checkbox"
+                  checked={prefs.enabledSources[key]}
+                  onChange={(e) => toggleSource(key, e.target.checked)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
+          <label htmlFor="searchQuery">Search query</label>
           <p className="hint">Empty → derive from profile title + top skills.</p>
           <input
             id="searchQuery"
@@ -108,7 +151,7 @@ export default function PreferencesPanel({
         </div>
 
         <div className="field">
-          <label htmlFor="searchLocation">Indeed location</label>
+          <label htmlFor="searchLocation">Search location</label>
           <p className="hint">Empty → profile location or Remote.</p>
           <input
             id="searchLocation"
@@ -116,6 +159,25 @@ export default function PreferencesPanel({
             placeholder="e.g. Remote or Chicago, IL"
             value={prefs.searchLocation}
             onChange={(e) => void onChange({ searchLocation: e.target.value })}
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor="careerUrls">Company career URLs</label>
+          <p className="hint">One listing URL per line (Greenhouse boards, Lever, careers pages).</p>
+          <textarea
+            id="careerUrls"
+            rows={4}
+            value={careerUrlsText}
+            onChange={(e) => setCareerUrlsText(e.target.value)}
+            onBlur={() =>
+              void onChange({
+                companyCareerUrls: careerUrlsText
+                  .split('\n')
+                  .map((l) => l.trim())
+                  .filter(Boolean)
+              })
+            }
           />
         </div>
 

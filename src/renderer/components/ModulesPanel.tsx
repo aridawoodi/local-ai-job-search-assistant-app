@@ -4,14 +4,14 @@ const MODULES = [
     path: 'electron/main/browser-controller.ts',
     badge: 'm2',
     summary:
-      'Playwright persistent Chrome/Edge profiles, Open browser + Check sessions (Indeed/LinkedIn).'
+      'Playwright persistent Chrome/Edge profiles, Open browser + Check sessions (Indeed/LinkedIn/Google).'
   },
   {
     name: 'search',
     path: 'src/modules/search',
-    badge: 'm2',
+    badge: 'm3',
     summary:
-      'First source: Indeed job cards via real browser. LinkedIn/Google Jobs later. Fixture fallback for captcha.'
+      'Indeed + Google Jobs + LinkedIn + company career URL stubs. Source toggles, rate limit, search history, fixtures.'
   },
   {
     name: 'match',
@@ -28,9 +28,9 @@ const MODULES = [
   {
     name: 'apply',
     path: 'src/modules/apply',
-    badge: 'safe stub',
+    badge: 'm3',
     summary:
-      'Respects apply-safety; M2 never auto-submits (confirm queues only / unattended skipped).'
+      'Profile autofill (Greenhouse/Lever/Ashby/LinkedIn/generic patterns). Confirm vs unattended; never auto-submits.'
   },
   {
     name: 'import',
@@ -52,7 +52,7 @@ export default function ModulesPanel() {
     <div className="panel">
       <h2>Modules</h2>
       <p className="lede">
-        Milestone 2 wires browser sessions, Indeed search, profile match, and desktop notify.
+        Milestone 3 expands search sources and wires apply-fill with apply-safety prefs.
       </p>
       <div className="module-list">
         {MODULES.map((m) => (

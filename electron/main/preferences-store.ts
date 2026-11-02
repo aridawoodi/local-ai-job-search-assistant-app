@@ -19,13 +19,19 @@ export function loadPreferences(): AppPreferences {
     return {
       ...DEFAULT_PREFERENCES,
       ...parsed,
+      companyCareerUrls:
+        parsed.companyCareerUrls ?? DEFAULT_PREFERENCES.companyCareerUrls,
       enabledSources: {
         ...DEFAULT_PREFERENCES.enabledSources,
         ...(parsed.enabledSources || {})
       }
     }
   } catch {
-    return { ...DEFAULT_PREFERENCES, enabledSources: { ...DEFAULT_PREFERENCES.enabledSources } }
+    return {
+      ...DEFAULT_PREFERENCES,
+      companyCareerUrls: [...DEFAULT_PREFERENCES.companyCareerUrls],
+      enabledSources: { ...DEFAULT_PREFERENCES.enabledSources }
+    }
   }
 }
 
@@ -39,6 +45,7 @@ export function updatePreferences(partial: Partial<AppPreferences>): AppPreferen
   const next: AppPreferences = {
     ...current,
     ...partial,
+    companyCareerUrls: partial.companyCareerUrls ?? current.companyCareerUrls,
     enabledSources: {
       ...current.enabledSources,
       ...(partial.enabledSources || {})

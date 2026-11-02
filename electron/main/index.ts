@@ -12,10 +12,10 @@ import { loadPreferences, updatePreferences } from './preferences-store'
 import { loadProfileBundle, saveProfileBundle } from './profile-store'
 import { checkOllama } from './ollama'
 import { browserController } from './browser-controller'
-import { searchJobs } from '../../src/modules/search'
+import { getSearchHistory, searchJobs } from '../../src/modules/search'
 import { matchJobs } from '../../src/modules/match'
 import { notifyBestFits } from '../../src/modules/notify'
-import { applyToJobs } from '../../src/modules/apply'
+import { applyToJobs, confirmAndFill } from '../../src/modules/apply'
 import {
   parseExtensionExport,
   skipExtensionImportMessage
@@ -23,6 +23,7 @@ import {
 import type { JobListing, PipelineStatus } from '../../src/shared/types'
 
 let mainWindow: BrowserWindow | null = null
+let lastJobs: JobListing[] = []
 let pipelineStatus: PipelineStatus = {
   stage: 'idle',
   message: 'Ready',
@@ -105,28 +106,67 @@ async function runSearchInternal() {
   const bundle = loadProfileBundle()
   setStatus('browser', 'Opening automation browser…')
   const page = await browserController.getPage(app.getPath('userData'), prefs.browser)
-  setStatus('search', 'Searching Indeed…')
+  const enabled = Object.entries(prefs.enabledSources)
+    .filter(([, on]) => on)
+    .map(([k]) => k)
+  setStatus('search', `Searching ${enabled.join(', ') || 'no sources'}…`)
   const result = await searchJobs(prefs, {
     page,
     profile: bundle.profile,
     appPath: app.getAppPath(),
     cwd: process.cwd()
   })
+  lastJobs = result.jobs
   setStatus(
     'idle',
-    `${result.message} (${result.jobs.length} job(s); query="${result.query}")`
+    `${result.jobs.length} job(s) from ${result.sources.length} source(s); query="${result.query}"`
   )
   return {
     jobs: result.jobs,
     meta: {
-      source: result.source,
+      sources: result.sources,
       usedFixture: result.usedFixture,
       message: result.message,
       searchUrl: result.searchUrl,
       query: result.query,
-      location: result.location
-    }
+      location: result.location,
+      runId: result.runId
+    },
+    history: getSearchHistory()
   }
+}
+
+async function applyInternal(jobIds: string[], confirmed: boolean) {
+  const prefs = loadPreferences()
+  const bundle = loadProfileBundle()
+  setStatus(
+    'apply',
+    confirmed
+      ? 'Confirm apply — filling forms (no auto-submit)…'
+      : prefs.applySafety === 'unattended'
+        ? 'Unattended fill (no auto-submit)…'
+        : 'Apply — queueing for confirmation…'
+  )
+  const page = await browserController.getPage(app.getPath('userData'), prefs.browser)
+  const ctx = {
+    page,
+    jobs: lastJobs,
+    profile: bundle.profile,
+    appPath: app.getAppPath(),
+    cwd: process.cwd(),
+    confirmed
+  }
+  const results = confirmed
+    ? await confirmAndFill(jobIds, prefs, ctx)
+    : await applyToJobs(jobIds, prefs, ctx)
+
+  const filled = results.filter((r) => r.status === 'filled' || r.status === 'needs_you').length
+  const pending = results.filter((r) => r.status === 'pending_confirm').length
+  setStatus(
+    'idle',
+    `Apply done: ${filled} filled, ${pending} pending confirm, 0 submitted (safety).`
+  )
+  return results
 }
 
 function registerIpc(): void {
@@ -134,6 +174,7 @@ function registerIpc(): void {
   ipcMain.handle('prefs:set', (_e, partial) => updatePreferences(partial))
   ipcMain.handle('profile:get', () => loadProfileBundle())
   ipcMain.handle('pipeline:status', () => pipelineStatus)
+  ipcMain.handle('pipeline:search-history', () => getSearchHistory())
 
   ipcMain.handle('browser:status', () => {
     const prefs = loadPreferences()
@@ -160,7 +201,7 @@ function registerIpc(): void {
 
   ipcMain.handle('browser:check-sessions', async () => {
     const prefs = loadPreferences()
-    setStatus('browser', 'Checking Indeed / LinkedIn sessions…')
+    setStatus('browser', 'Checking Indeed / LinkedIn / Google sessions…')
     try {
       const results = await browserController.checkSessions(
         app.getPath('userData'),
@@ -201,6 +242,7 @@ function registerIpc(): void {
     setStatus('match', 'Matching against profile…')
     const prefs = loadPreferences()
     const bundle = loadProfileBundle()
+    if (jobs?.length) lastJobs = jobs
     const results = await matchJobs(jobs, prefs, bundle.profile)
     const fits = results.filter((r) => r.fits).length
     setStatus('idle', `Matched ${results.length} job(s); ${fits} meet threshold ${prefs.matchThreshold}.`)
@@ -219,16 +261,28 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('pipeline:apply', async (_e, jobIds: string[]) => {
-    setStatus('apply', 'Apply (M2: no auto-submit)…')
-    const prefs = loadPreferences()
-    const results = await applyToJobs(jobIds, prefs)
-    setStatus('idle', 'Apply skipped — M2 is search + match + notify only.')
-    return results
+    try {
+      return await applyInternal(jobIds, false)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setStatus('idle', message)
+      throw err
+    }
+  })
+
+  ipcMain.handle('pipeline:confirm-apply', async (_e, jobIds: string[]) => {
+    try {
+      return await applyInternal(jobIds, true)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setStatus('idle', message)
+      throw err
+    }
   })
 
   ipcMain.handle('pipeline:run', async () => {
     try {
-      const { jobs, meta } = await runSearchInternal()
+      const { jobs, meta, history } = await runSearchInternal()
       setStatus('match', 'Matching…')
       const prefs = loadPreferences()
       const bundle = loadProfileBundle()
@@ -239,7 +293,7 @@ function registerIpc(): void {
         'idle',
         `Pipeline done: ${jobs.length} jobs, ${matches.filter((m) => m.fits).length} fits, ${notify.notified} notified.`
       )
-      return { jobs, matches, notified: notify.notified, meta }
+      return { jobs, matches, notified: notify.notified, meta, history }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setStatus('idle', message)

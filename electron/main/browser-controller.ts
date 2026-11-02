@@ -148,6 +148,7 @@ export class BrowserController {
 
     results.push(await this.probeIndeed(page))
     results.push(await this.probeLinkedIn(page))
+    results.push(await this.probeGoogle(page))
 
     return results
   }
@@ -247,6 +248,45 @@ export class BrowserController {
         source: 'linkedin',
         ready: false,
         needsLogin: true,
+        message: err instanceof Error ? err.message : String(err),
+        url
+      }
+    }
+  }
+
+  private async probeGoogle(page: Page): Promise<SessionCheckResult> {
+    const url = 'https://www.google.com/search?q=software+engineer&udm=8'
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+      await new Promise((r) => setTimeout(r, 800))
+      const snapshot = await page.evaluate(() => {
+        const text = (document.body?.innerText || '').toLowerCase()
+        const blocked =
+          /unusual traffic|captcha|not a robot|detected unusual/.test(text) ||
+          Boolean(document.querySelector('#captcha, iframe[src*="recaptcha"]'))
+        return { blocked, href: location.href }
+      })
+      if (snapshot.blocked) {
+        return {
+          source: 'google',
+          ready: false,
+          needsLogin: false,
+          message: 'Google Jobs showed captcha / unusual traffic — complete it in the browser.',
+          url: snapshot.href
+        }
+      }
+      return {
+        source: 'google',
+        ready: true,
+        needsLogin: false,
+        message: 'Google Jobs reachable (public search; login optional).',
+        url: snapshot.href
+      }
+    } catch (err) {
+      return {
+        source: 'google',
+        ready: false,
+        needsLogin: false,
         message: err instanceof Error ? err.message : String(err),
         url
       }
