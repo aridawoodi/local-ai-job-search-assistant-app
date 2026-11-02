@@ -75,7 +75,8 @@ export default function PreferencesPanel({
     <div className="panel">
       <h2>Preferences</h2>
       <p className="lede">
-        User-controlled settings. Defaults are safe; nothing is hard-locked to one mode.
+        User-controlled settings. Defaults are safe (confirm-before-apply, no auto-submit); nothing is
+        hard-locked to one mode. First-run import also lives here if you skipped onboarding.
       </p>
 
       <div className="grid">

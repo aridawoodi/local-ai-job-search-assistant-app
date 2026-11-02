@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ApplicationRow, TrackerStage } from '../../shared/tracker'
 import { TRACKER_STAGES } from '../../shared/tracker'
+import EmptyState from './EmptyState'
 
 export default function TrackerPanel() {
   const [rows, setRows] = useState<ApplicationRow[]>([])
@@ -127,10 +128,15 @@ export default function TrackerPanel() {
 
       <div className="card-list">
         {filtered.length === 0 ? (
-          <p className="hint">
-            No applications yet — import an extension backup with applications, or fill a job from
-            Apply queue.
-          </p>
+          <EmptyState
+            title="No applications tracked"
+            body="Rows appear when Apply fills a form, or when you import an extension backup that includes applications."
+            steps={[
+              'Preferences → Import from file (full backup) to bring existing tracker rows.',
+              'Or Matches / Apply → queue a fit and confirm fill.',
+              'Stages, notes, reminders, and CSV export live here once rows exist.'
+            ]}
+          />
         ) : (
           filtered.map((row) => (
             <article key={row.key} className="inbox-card">

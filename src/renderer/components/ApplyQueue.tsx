@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AppPreferences } from '../../shared/preferences'
 import type { ApplyResult, JobListing } from '../../shared/types'
+import EmptyState from './EmptyState'
 
 interface Props {
   prefs: AppPreferences
@@ -118,6 +119,22 @@ export default function ApplyQueue({ prefs }: Props) {
       </div>
 
       {msg ? <p className="hint" style={{ marginTop: '0.75rem' }}>{msg}</p> : null}
+
+      {!results.length ? (
+        <EmptyState
+          title="Apply queue is empty"
+          body="Queue top fits to fill forms in the automation browser. Confirm mode never presses Submit for you."
+          steps={[
+            'Run a search and score matches first (Pipeline or Matches).',
+            'Queue top fits — confirm mode parks jobs here until you approve.',
+            prefs.applySafety === 'confirm'
+              ? 'Confirm & fill writes the tracker; Submit stays manual.'
+              : prefs.allowAutoSubmit
+                ? 'Unattended + auto-submit may click Submit (daily cap applies).'
+                : 'Unattended fills only — you still submit manually.'
+          ]}
+        />
+      ) : null}
 
       <div className="split-cols">
         <section>

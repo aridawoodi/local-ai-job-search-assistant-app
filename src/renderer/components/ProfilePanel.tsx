@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AnswerBankEntry, StoredProfileBundle } from '../../shared/profile'
 import { profileDisplayName } from '../../shared/profile'
+import EmptyState from './EmptyState'
 
 interface Props {
   bundle: StoredProfileBundle
@@ -113,10 +114,15 @@ export default function ProfilePanel({ bundle, onReload }: Props) {
       {msg ? <p className="hint">{msg}</p> : null}
 
       {empty ? (
-        <div className="status">
-          No profile loaded yet. Import a resume or use Preferences to import
-          `job-apply-profile.json` / a full backup.
-        </div>
+        <EmptyState
+          title="No profile loaded yet"
+          body="Matching and apply-fill need local profile fields. EEO is never inferred from a resume."
+          steps={[
+            'Import resume (PDF/DOCX) here, or Preferences → Import from file / Load sample.',
+            'Add answer-bank Q&A for common application questions.',
+            'Export profile / full backup anytime — data stays under Electron userData.'
+          ]}
+        />
       ) : (
         <>
           <div className="profile-grid">

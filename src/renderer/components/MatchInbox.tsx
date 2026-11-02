@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AppPreferences } from '../../shared/preferences'
 import type { JobListing, MatchResult } from '../../shared/types'
+import EmptyState from './EmptyState'
 
 interface Props {
   prefs: AppPreferences
@@ -134,7 +135,15 @@ export default function MatchInbox({ prefs }: Props) {
 
       <div className="card-list">
         {rows.length === 0 ? (
-          <p className="hint">No matches yet — run Search on Pipeline, then Score jobs.</p>
+          <EmptyState
+            title="No matches yet"
+            body="Score jobs against your local profile. Best fits can notify you and queue for apply-fill."
+            steps={[
+              'Pipeline → Run search → match → notify (or Search, then Score jobs here).',
+              `Fits use threshold ${prefs.matchThreshold} — lower it in Preferences if everything scores shy.`,
+              'Open a posting, or Queue apply / fill when a card looks right.'
+            ]}
+          />
         ) : (
           rows.map(({ job, match }) =>
             job ? (

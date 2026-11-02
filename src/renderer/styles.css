@@ -333,7 +333,7 @@ textarea {
 }
 
 .onboarding-card {
-  width: min(560px, 100%);
+  width: min(640px, 100%);
   padding: 2rem;
   border-radius: 18px;
   border: 1px solid var(--border);
@@ -352,6 +352,84 @@ textarea {
 .onboarding-card h2 {
   margin: 0 0 0.5rem;
   font-size: 1.6rem;
+}
+
+.onboarding-steps {
+  margin: 1rem 0 1.25rem;
+  padding-left: 1.2rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.onboarding-steps li + li {
+  margin-top: 0.45rem;
+}
+
+.onboarding-steps strong {
+  color: var(--text);
+}
+
+.choice-stack {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.btn.choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  text-align: left;
+  width: 100%;
+  padding: 0.85rem 1rem;
+}
+
+.choice-title {
+  font-weight: 600;
+}
+
+.choice-hint {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.btn.primary .choice-hint {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.empty-state {
+  margin: 0.85rem 0 0.25rem;
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius);
+  border: 1px dashed color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
+}
+
+.empty-state h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.empty-state p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.empty-state ol {
+  margin: 0.65rem 0 0;
+  padding-left: 1.2rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.empty-state li + li {
+  margin-top: 0.3rem;
 }
 
 .skills {
