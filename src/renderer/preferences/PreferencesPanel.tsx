@@ -80,8 +80,9 @@ export default function PreferencesPanel({
         <div className="field">
           <label htmlFor="applySafety">Apply safety</label>
           <p className="hint">
-            Confirm before each fill, or unattended fill after setup. Neither mode auto-submits
-            applications in this milestone.
+            Confirm queues fills until you approve. Unattended fills without per-job confirm.
+            Submit stays off unless you also enable auto-submit below — confirm mode never
+            auto-submits.
           </p>
           <select
             id="applySafety"
@@ -91,8 +92,24 @@ export default function PreferencesPanel({
             }
           >
             <option value="confirm">Confirm before apply</option>
-            <option value="unattended">Unattended fill (no auto-submit)</option>
+            <option value="unattended">Unattended apply</option>
           </select>
+          <label className="check" style={{ marginTop: '0.65rem' }}>
+            <input
+              type="checkbox"
+              checked={prefs.allowAutoSubmit}
+              disabled={prefs.applySafety === 'confirm'}
+              onChange={(e) => void onChange({ allowAutoSubmit: e.target.checked })}
+            />
+            Allow auto-submit (unattended only)
+          </label>
+          <p className="hint">
+            {prefs.applySafety === 'confirm'
+              ? 'Disabled while confirm mode is on — you must confirm fills; Submit is never pressed automatically.'
+              : prefs.allowAutoSubmit
+                ? 'Unattended will click a final Submit/Apply after fill (not Next/Continue). Respects daily action cap.'
+                : 'Unattended fills forms only; you submit manually.'}
+          </p>
         </div>
 
         <div className="field">
@@ -204,12 +221,38 @@ export default function PreferencesPanel({
 
         <div className="field">
           <label htmlFor="ollamaUrl">Ollama URL</label>
-          <p className="hint">Soft dependency — local AI for drafts/match refine later.</p>
+          <p className="hint">Used by AI tab (tailor / cover / refine). Soft dependency for other features.</p>
           <input
             id="ollamaUrl"
             type="text"
             value={prefs.ollamaUrl}
             onChange={(e) => void onChange({ ollamaUrl: e.target.value })}
+          />
+          <label htmlFor="ollamaModel" style={{ marginTop: '0.5rem' }}>
+            Ollama model (optional)
+          </label>
+          <input
+            id="ollamaModel"
+            type="text"
+            placeholder="e.g. qwen2.5:3b — empty = first available"
+            value={prefs.ollamaModel}
+            onChange={(e) => void onChange({ ollamaModel: e.target.value })}
+          />
+          <label htmlFor="tailorRules" style={{ marginTop: '0.5rem' }}>
+            Tailoring rules (one per line)
+          </label>
+          <textarea
+            id="tailorRules"
+            rows={3}
+            value={(prefs.tailoringRules || []).join('\n')}
+            onChange={(e) =>
+              void onChange({
+                tailoringRules: e.target.value
+                  .split('\n')
+                  .map((l) => l.trim())
+                  .filter(Boolean)
+              })
+            }
           />
           <div className="actions" style={{ marginTop: '0.5rem' }}>
             <button className="btn" type="button" onClick={() => void refreshOllama()}>

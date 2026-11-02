@@ -11,15 +11,20 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "dist": "npm run build && electron-builder --mac --win",
-    "dist:mac": "npm run build && electron-builder --mac",
-    "dist:win": "npm run build && electron-builder --win"
+    "dist": "node scripts/package.mjs",
+    "dist:mac": "node scripts/package.mjs --mac",
+    "dist:win": "node scripts/package.mjs --win",
+    "dist:dir": "node scripts/package.mjs --dir",
+    "package": "node scripts/package.mjs"
   },
   "dependencies": {
+    "jszip": "^3.10.1",
+    "pdf-parse": "^1.1.1",
     "playwright": "^1.49.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/pdf-parse": "^1.1.4",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
@@ -32,18 +37,26 @@
     "vite": "^5.4.11"
   },
   "build": {
-    "appId": "com.aridawoodi.jobsearch.assistant",
+    "appId": "com.aridawoodi.job.search.assistant",
     "productName": "Job Search Assistant",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "out/**/*",
       "resources/**/*",
       "fixtures/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "fixtures",
+        "to": "fixtures"
+      }
+    ],
     "mac": {
       "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "dmg",
@@ -54,15 +67,25 @@
           "arch": ["universal"]
         }
       ],
-      "hardenedRuntime": true
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
     },
     "win": {
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "nsis",
           "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
         }
       ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   }
 }

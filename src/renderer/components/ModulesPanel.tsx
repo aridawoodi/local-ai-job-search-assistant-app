@@ -11,7 +11,7 @@ const MODULES = [
     path: 'src/modules/search',
     badge: 'm3+',
     summary:
-      'Indeed + Google Jobs + hardened LinkedIn (scroll/login-aware) + Greenhouse/Lever/Ashby company crawl. Source toggles, rate limit, history, optional scheduled runs.'
+      'Indeed + Google Jobs + hardened LinkedIn + Greenhouse/Lever/Ashby company crawl. Schedule optional.'
   },
   {
     name: 'match',
@@ -28,9 +28,27 @@ const MODULES = [
   {
     name: 'apply',
     path: 'src/modules/apply',
-    badge: 'm3',
+    badge: 'm6',
     summary:
-      'Profile autofill (Greenhouse/Lever/Ashby/LinkedIn/generic). Confirm vs unattended; never auto-submits. Writes tracker rows on fill.'
+      'Profile autofill + gated submit: confirm never submits; unattended submits only when allowAutoSubmit is on.'
+  },
+  {
+    name: 'ai',
+    path: 'src/modules/ai',
+    badge: 'm7',
+    summary: 'Ollama tailor / cover / refine with fact checks (extension AI parity).'
+  },
+  {
+    name: 'resume',
+    path: 'src/modules/resume',
+    badge: 'm7',
+    summary: 'Local PDF/DOCX parse + deterministic profile patch (EEO never inferred).'
+  },
+  {
+    name: 'answer-bank',
+    path: 'src/shared/answer-bank.ts',
+    badge: 'm7',
+    summary: 'Similarity merge ≥85% + NEVER_LEARN filters.'
   },
   {
     name: 'tracker',
@@ -47,10 +65,10 @@ const MODULES = [
       'Importers for job-apply-profile.json and kind: job-apply-assistant-backup (incl. applications).'
   },
   {
-    name: 'ollama',
-    path: 'electron/main/ollama.ts',
-    badge: 'm1',
-    summary: 'Local Ollama reachability check.'
+    name: 'packaging',
+    path: 'scripts/package.mjs + electron-builder',
+    badge: 'm1/m7',
+    summary: 'Mac universal dmg/zip + Windows nsis/zip via npm run dist / dist:mac / dist:win.'
   }
 ] as const
 
@@ -59,8 +77,7 @@ export default function ModulesPanel() {
     <div className="panel">
       <h2>Modules</h2>
       <p className="lede">
-        Post-M3: Match inbox, Apply queue, Tracker parity, LinkedIn/company search hardening, and
-        scheduled search prefs.
+        Packaging + AI parity + resume/answer-bank + gated submit on top of post-M3 tracker/search.
       </p>
       <div className="module-list">
         {MODULES.map((m) => (

@@ -5,6 +5,7 @@ import type { AppPreferences } from '../../shared/preferences'
 import type { UserProfile } from '../../shared/profile'
 import type { ApplyResult, JobListing } from '../../shared/types'
 import { fillApplicationPage } from './fill'
+import { canAutoSubmit, maybeClickSubmit } from './submit'
 
 export interface ApplyContext {
   page: Page
@@ -14,6 +15,8 @@ export interface ApplyContext {
   cwd: string
   /** When true, proceed with fill even in confirm mode (user approved). */
   confirmed?: boolean
+  /** Soft daily action counter (fills + submits). */
+  actionsToday?: number
 }
 
 const pendingConfirm = new Set<string>()
@@ -23,13 +26,12 @@ export function getPendingConfirmIds(): string[] {
 }
 
 /**
- * Apply-fill workflow (Milestone 3).
+ * Apply-fill (+ optional gated submit) workflow.
  *
  * Safety:
- * - Default confirm mode: queue jobs as pending_confirm until the user confirms.
- * - Unattended: fill immediately without per-job confirm.
- * - Neither mode auto-submits (no Submit / Apply / Next clicks). Full unattended
- *   submit automation is deferred to a later milestone.
+ * - Confirm mode: queue until user confirms; fill only; NEVER submit even if allowAutoSubmit.
+ * - Unattended: fill immediately; submit only when allowAutoSubmit is true.
+ * - Daily maxActionsPerDay soft-caps automated fills/submits.
  */
 export async function applyToJobs(
   jobIds: string[],
@@ -46,6 +48,7 @@ export async function applyToJobs(
   }
 
   const results: ApplyResult[] = []
+  let actions = ctx.actionsToday ?? 0
 
   for (const jobId of jobIds) {
     const job = ctx.jobs.find((j) => j.id === jobId)
@@ -65,7 +68,7 @@ export async function applyToJobs(
         jobId,
         status: 'pending_confirm',
         message:
-          'Queued for confirmation (apply safety = confirm). Approve to autofill — Submit will never be pressed automatically.',
+          'Queued for confirmation (apply safety = confirm). Approve to autofill — Submit stays gated.',
         url: job.url,
         submitted: false
       })
@@ -83,6 +86,17 @@ export async function applyToJobs(
       continue
     }
 
+    if (actions >= prefs.maxActionsPerDay) {
+      results.push({
+        jobId,
+        status: 'skipped',
+        message: `Daily action cap reached (${prefs.maxActionsPerDay}).`,
+        url: job.url,
+        submitted: false
+      })
+      continue
+    }
+
     try {
       const targetUrl = resolveApplyUrl(job, ctx)
       await ctx.page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
@@ -90,9 +104,28 @@ export async function applyToJobs(
 
       const fill = await fillApplicationPage(ctx.page, ctx.profile)
       pendingConfirm.delete(jobId)
+      actions++
 
-      const status =
-        !fill.formFound
+      let submitted = false
+      let submitMsg = ''
+      if (fill.formFound && canAutoSubmit(prefs)) {
+        if (actions >= prefs.maxActionsPerDay) {
+          submitMsg = ' Fill done; submit skipped (daily cap).'
+        } else {
+          const sub = await maybeClickSubmit(ctx.page, prefs)
+          submitted = sub.submitted
+          submitMsg = ` ${sub.message}`
+          if (sub.attempted) actions++
+        }
+      } else if (prefs.applySafety === 'confirm') {
+        submitMsg = ' Confirm mode: submit not pressed (requires user).'
+      } else if (!prefs.allowAutoSubmit) {
+        submitMsg = ' Unattended fill only (allowAutoSubmit off).'
+      }
+
+      const status = submitted
+        ? ('submitted' as const)
+        : !fill.formFound
           ? ('failed' as const)
           : fill.needsYouCount > 0
             ? ('needs_you' as const)
@@ -102,14 +135,13 @@ export async function applyToJobs(
         jobId,
         status,
         message:
-          `${prefs.applySafety === 'unattended' ? 'Unattended fill' : 'Confirmed fill'}: ${fill.message} ` +
-          '(apply-safety: no auto-submit).',
+          `${prefs.applySafety === 'unattended' ? 'Unattended' : 'Confirmed'} fill: ${fill.message}${submitMsg}`,
         url: targetUrl,
         adapter: fill.adapter,
         filledCount: fill.filledCount,
         needsYouCount: fill.needsYouCount,
         fields: fill.fields,
-        submitted: false
+        submitted
       })
     } catch (err) {
       results.push({
@@ -135,7 +167,6 @@ export async function confirmAndFill(
 }
 
 function resolveApplyUrl(job: JobListing, ctx: ApplyContext): string {
-  // Demo/fixture jobs → local practice apply form so fill can be verified offline.
   const demo =
     /fixture|example\.com|localhost|\/example\//i.test(job.url) ||
     /fixture/i.test(job.id) ||
@@ -144,7 +175,6 @@ function resolveApplyUrl(job: JobListing, ctx: ApplyContext): string {
     const practice = defaultPracticeFormPath(ctx.appPath, ctx.cwd)
     if (practice) return `file://${practice}`
   }
-  // Prefer http(s) URLs; Greenhouse/Lever board listing links often work as apply targets.
   if (/^https?:\/\//i.test(job.url)) return job.url
 
   const practice = defaultPracticeFormPath(ctx.appPath, ctx.cwd)
@@ -160,3 +190,5 @@ export function defaultPracticeFormPath(appPath: string, cwd: string): string | 
   ]
   return candidates.find((p) => existsSync(p)) || null
 }
+
+export { canAutoSubmit, maybeClickSubmit } from './submit'

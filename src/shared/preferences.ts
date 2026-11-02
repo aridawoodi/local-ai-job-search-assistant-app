@@ -7,6 +7,11 @@ export type BrowserPreference = 'chrome' | 'edge' | 'either'
 
 export interface AppPreferences {
   applySafety: ApplySafetyMode
+  /**
+   * When true AND applySafety === 'unattended', the apply pipeline may click a final
+   * Submit/Apply control after fill. Confirm mode always ignores this (never auto-submits).
+   */
+  allowAutoSubmit: boolean
   browser: BrowserPreference
   /** First-run: prompt until imported or skipped. */
   extensionImportStatus: 'not_started' | 'imported' | 'skipped'
@@ -14,6 +19,8 @@ export interface AppPreferences {
   maxActionsPerDay: number
   matchThreshold: number
   ollamaUrl: string
+  /** Preferred Ollama model; empty → first available tag. */
+  ollamaModel: string
   /** Search query; empty → derive from profile title/skills. */
   searchQuery: string
   /** Search location; empty → derive from profile or Remote. */
@@ -35,16 +42,20 @@ export interface AppPreferences {
   scheduledSearchMinutes: number
   /** Notify when tracker reminder dates are due. */
   reminderNotifications: boolean
+  /** Optional user rules for resume tailoring. */
+  tailoringRules: string[]
 }
 
 export const DEFAULT_PREFERENCES: AppPreferences = {
   applySafety: 'confirm',
+  allowAutoSubmit: false,
   browser: 'either',
   extensionImportStatus: 'not_started',
   onboardingComplete: false,
   maxActionsPerDay: 25,
   matchThreshold: 70,
   ollamaUrl: 'http://127.0.0.1:11434',
+  ollamaModel: '',
   searchQuery: '',
   searchLocation: '',
   companyCareerUrls: [
@@ -60,5 +71,6 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
     companySites: false
   },
   scheduledSearchMinutes: 0,
-  reminderNotifications: true
+  reminderNotifications: true,
+  tailoringRules: []
 }

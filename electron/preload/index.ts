@@ -1,7 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { DesktopApi, TrackerUpdatePatch } from '../../src/shared/ipc'
+import type { DesktopApi, TrackerUpdatePatch, AiJobInput } from '../../src/shared/ipc'
 import type { AppPreferences } from '../../src/shared/preferences'
+import type { AnswerBankEntry } from '../../src/shared/profile'
 import type { JobListing, MatchResult } from '../../src/shared/types'
+import type { CoverLength } from '../../src/modules/ai/cover'
+import type { RefineMode } from '../../src/modules/ai/refine'
 
 const api: DesktopApi = {
   getPreferences: () => ipcRenderer.invoke('prefs:get'),
@@ -35,7 +38,19 @@ const api: DesktopApi = {
   checkReminders: () => ipcRenderer.invoke('tracker:check-reminders'),
   getLastJobs: () => ipcRenderer.invoke('pipeline:last-jobs'),
   getLastMatches: () => ipcRenderer.invoke('pipeline:last-matches'),
-  getLastApplyResults: () => ipcRenderer.invoke('pipeline:last-apply')
+  getLastApplyResults: () => ipcRenderer.invoke('pipeline:last-apply'),
+  importResume: () => ipcRenderer.invoke('resume:import'),
+  listAnswerBank: () => ipcRenderer.invoke('answerbank:list'),
+  upsertAnswerBank: (entries: AnswerBankEntry[]) =>
+    ipcRenderer.invoke('answerbank:upsert', entries),
+  deleteAnswerBank: (index: number) => ipcRenderer.invoke('answerbank:delete', index),
+  aiTailor: (job: AiJobInput) => ipcRenderer.invoke('ai:tailor', job),
+  aiCover: (job: AiJobInput, length?: CoverLength) =>
+    ipcRenderer.invoke('ai:cover', job, length),
+  aiRefine: (text: string, mode?: RefineMode, question?: string) =>
+    ipcRenderer.invoke('ai:refine', text, mode, question),
+  applyTailorToProfile: (summary: string, skillsLine: string) =>
+    ipcRenderer.invoke('ai:apply-tailor', summary, skillsLine)
 }
 
 contextBridge.exposeInMainWorld('desktopApi', api)
