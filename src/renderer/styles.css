@@ -544,3 +544,79 @@ textarea {
   font-size: 0.9rem;
   font-weight: 500;
 }
+
+.pause-banner {
+  margin: 0 0 1rem;
+  padding: 1rem 1.15rem;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--warning) 55%, var(--border));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--warning) 16%, transparent),
+      color-mix(in srgb, var(--danger) 10%, transparent)
+    ),
+    var(--bg-elevated);
+  animation: pause-in 280ms ease-out;
+}
+
+@keyframes pause-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.pause-banner-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  margin-bottom: 0.45rem;
+}
+
+.pause-banner h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.pause-banner p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.pause-steps {
+  margin: 0.65rem 0 0;
+  padding-left: 1.2rem;
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.pause-steps li {
+  margin: 0.25rem 0;
+}
+
+.pause-banner .actions {
+  margin-top: 0.85rem;
+}
+
+.refine-panel {
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.refine-split {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.35rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.refine-split .hint {
+  margin: 0.35rem 0 0;
+}

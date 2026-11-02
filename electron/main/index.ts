@@ -34,6 +34,12 @@ import {
 import { draftCoverLetter, refineAnswer, tailorResume } from '../../src/modules/ai'
 import { importResumeFromPath } from '../../src/modules/resume'
 import { mergeIntoBank } from '../../src/shared/answer-bank'
+import {
+  emptyPause,
+  pauseFromSearchSources,
+  pickSessionPause,
+  type PipelinePause
+} from '../../src/shared/pause'
 import type { AnswerBankEntry } from '../../src/shared/profile'
 import type { ApplyResult, JobListing, MatchResult, PipelineStatus } from '../../src/shared/types'
 import type { TrackerStage, TrackerStatus } from '../../src/shared/tracker'
@@ -44,6 +50,7 @@ let mainWindow: BrowserWindow | null = null
 let lastJobs: JobListing[] = []
 let lastMatches: MatchResult[] = []
 let lastApplyResults: ApplyResult[] = []
+let lastPause: PipelinePause = emptyPause()
 let pipelineStatus: PipelineStatus = {
   stage: 'idle',
   message: 'Ready',
@@ -56,6 +63,27 @@ const notifiedReminders = new Set<string>()
 
 function setStatus(stage: PipelineStatus['stage'], message: string): void {
   pipelineStatus = { stage, message, updatedAt: new Date().toISOString() }
+}
+
+function setPause(pause: PipelinePause, notify = true): void {
+  lastPause = pause
+  if (pause.active) {
+    setStatus('paused', `${pause.title}: ${pause.message}`)
+    if (notify) {
+      showDesktopNotification(
+        `Paused — ${pause.title}`,
+        pause.message.slice(0, 180)
+      )
+    }
+  }
+}
+
+function clearPauseState(): PipelinePause {
+  lastPause = emptyPause()
+  if (pipelineStatus.stage === 'paused') {
+    setStatus('idle', 'Pause cleared — ready to continue.')
+  }
+  return lastPause
 }
 
 function sampleFixturePath(): string {
@@ -157,10 +185,16 @@ async function runSearchInternal() {
   lastJobs = result.jobs
   lastMatches = []
   lastApplyResults = []
-  setStatus(
-    'idle',
-    `${result.jobs.length} job(s) from ${result.sources.length} source(s); query="${result.query}"`
-  )
+  const searchPause = pauseFromSearchSources(result.sources)
+  if (searchPause.active) {
+    setPause(searchPause)
+  } else {
+    clearPauseState()
+    setStatus(
+      'idle',
+      `${result.jobs.length} job(s) from ${result.sources.length} source(s); query="${result.query}"`
+    )
+  }
   return {
     jobs: result.jobs,
     meta: {
@@ -172,7 +206,8 @@ async function runSearchInternal() {
       location: result.location,
       runId: result.runId
     },
-    history: getSearchHistory()
+    history: getSearchHistory(),
+    pause: lastPause
   }
 }
 
@@ -376,14 +411,59 @@ function registerIpc(): void {
         app.getPath('userData'),
         prefs.browser
       )
-      const needs = results.filter((r) => r.needsLogin || !r.ready)
-      setStatus(
-        'idle',
-        needs.length
-          ? `Session check: ${needs.map((n) => n.source).join(', ')} need attention — log in manually in the browser window.`
-          : 'Sessions look ready.'
-      )
+      const pause = pickSessionPause(results)
+      // Soft login prompts on Indeed (search still works) don't hard-pause.
+      const hard =
+        pause.active &&
+        (pause.kind === 'captcha' ||
+          (pause.kind === 'login' && pause.source !== 'indeed') ||
+          pause.kind === 'blocked')
+      if (hard) {
+        setPause(pause)
+      } else {
+        clearPauseState()
+        const needs = results.filter((r) => r.needsLogin || !r.ready)
+        setStatus(
+          'idle',
+          needs.length
+            ? `Session check: ${needs.map((n) => n.source).join(', ')} need attention — log in manually in the browser window.`
+            : 'Sessions look ready.'
+        )
+      }
       return results
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setStatus('idle', message)
+      throw err
+    }
+  })
+
+  ipcMain.handle('pipeline:pause-get', () => lastPause)
+
+  ipcMain.handle('pipeline:pause-clear', () => clearPauseState())
+
+  ipcMain.handle('pipeline:pause-resume', async () => {
+    const prefs = loadPreferences()
+    setStatus('browser', 'Resuming — re-checking sessions…')
+    try {
+      await browserController.ensureOpen(app.getPath('userData'), prefs.browser)
+      const sessions = await browserController.checkSessions(
+        app.getPath('userData'),
+        prefs.browser
+      )
+      const pause = pickSessionPause(sessions)
+      const hard =
+        pause.active &&
+        (pause.kind === 'captcha' ||
+          (pause.kind === 'login' && pause.source !== 'indeed') ||
+          pause.kind === 'blocked')
+      if (hard) {
+        setPause(pause, false)
+      } else {
+        clearPauseState()
+        setStatus('idle', 'Sessions clear — resume search or apply when ready.')
+      }
+      return { pause: lastPause, sessions }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setStatus('idle', message)

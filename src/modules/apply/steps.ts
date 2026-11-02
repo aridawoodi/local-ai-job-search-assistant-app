@@ -21,6 +21,8 @@ export interface StepSessionResult {
   filledCount: number
   needsYouCount: number
   submitted: boolean
+  submitConfirmed?: boolean
+  submitLabel?: string
   message: string
   adapter: string
   formFound: boolean
@@ -166,9 +168,13 @@ export async function runMultiStepSession(
     }
   }
 
+  let submitConfirmed = false
+  let submitLabel: string | undefined
   if (fill.formFound && canAutoSubmit(prefs)) {
     const sub = await maybeClickSubmit(page, prefs)
     submitted = sub.submitted
+    submitConfirmed = Boolean(sub.submitConfirmed)
+    submitLabel = sub.controlLabel
   }
 
   const fields = fills.flatMap((f) => f.fields)
@@ -182,7 +188,11 @@ export async function runMultiStepSession(
     stepsAdvanced ? `${stepsAdvanced} Next/Continue` : advance ? 'no Next found' : 'step advance off',
     `filled ${filledCount}`,
     `${needsYouCount} need you`,
-    submitted ? 'submitted' : 'submit not pressed'
+    submitted
+      ? submitConfirmed
+        ? 'submitted + confirmation UI'
+        : 'submitted (confirmation not seen)'
+      : 'submit not pressed'
   ]
 
   return {
@@ -192,6 +202,8 @@ export async function runMultiStepSession(
     filledCount,
     needsYouCount,
     submitted,
+    submitConfirmed,
+    submitLabel,
     adapter,
     formFound,
     message: parts.join('; ') + '.'

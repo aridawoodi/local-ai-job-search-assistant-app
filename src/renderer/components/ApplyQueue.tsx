@@ -30,7 +30,14 @@ export default function ApplyQueue({ prefs }: Props) {
     [results]
   )
   const filled = useMemo(
-    () => results.filter((r) => r.status === 'filled' || r.status === 'needs_you'),
+    () =>
+      results.filter(
+        (r) =>
+          r.status === 'filled' ||
+          r.status === 'needs_you' ||
+          r.status === 'submitted' ||
+          r.submitted
+      ),
     [results]
   )
 
@@ -146,13 +153,14 @@ export default function ApplyQueue({ prefs }: Props) {
         </section>
 
         <section>
-          <h3>Filled / needs you</h3>
+          <h3>Filled / submitted / needs you</h3>
           {filled.length === 0 ? (
             <p className="hint">No fills yet this session.</p>
           ) : (
             <div className="card-list">
               {filled.map((r) => {
                 const job = jobs.find((j) => j.id === r.jobId)
+                const submitted = r.submitted || r.status === 'submitted'
                 return (
                   <article key={r.jobId} className="inbox-card">
                     <div className="inbox-head">
@@ -160,13 +168,24 @@ export default function ApplyQueue({ prefs }: Props) {
                         <h3>{job?.title || r.jobId}</h3>
                         <p>{job?.company || r.adapter || ''}</p>
                       </div>
-                      <span className={`pill ${r.status === 'needs_you' ? 'bad' : 'ok'}`}>
+                      <span
+                        className={`pill ${
+                          r.status === 'needs_you' ? 'bad' : submitted ? 'ok' : ''
+                        }`}
+                      >
                         {r.status}
+                        {r.submitConfirmed ? ' · confirmed' : ''}
                       </span>
                     </div>
                     <p className="hint">
                       Filled {r.filledCount ?? 0}
-                      {r.needsYouCount ? ` · needs you ${r.needsYouCount}` : ''} · no auto-submit
+                      {r.needsYouCount ? ` · needs you ${r.needsYouCount}` : ''}
+                      {submitted
+                        ? r.submitConfirmed
+                          ? ' · submit tracked'
+                          : ' · submitted'
+                        : ' · no auto-submit'}
+                      {r.stepsAdvanced ? ` · ${r.stepsAdvanced} step(s)` : ''}
                     </p>
                     {r.fields?.length ? (
                       <ul className="field-report">

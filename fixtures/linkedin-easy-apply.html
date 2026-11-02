@@ -72,7 +72,14 @@
         <textarea id="li-cover" name="cover" rows="3"></textarea>
         <div class="footer">
           <button type="button" class="secondary" id="back-3">Back</button>
-          <button type="button" id="submit-final" onclick="alert('Submitted'); return false;">Submit application</button>
+          <button type="button" id="submit-final">Submit application</button>
+        </div>
+      </div>
+
+      <div class="step" data-step="done" id="success-step">
+        <div class="artdeco-inline-feedback--success" data-test-easy-apply-success>
+          <h3>Application sent</h3>
+          <p>Your application was submitted to Example Corp.</p>
         </div>
       </div>
     </div>
@@ -89,6 +96,10 @@
       document.getElementById('next-2').onclick = () => showStep(3)
       document.getElementById('back-2').onclick = () => showStep(1)
       document.getElementById('back-3').onclick = () => showStep(2)
+      document.getElementById('submit-final').onclick = () => {
+        document.documentElement.setAttribute('data-submit-ok', '1')
+        showStep('done')
+      }
     </script>
   </body>
 </html>

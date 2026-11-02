@@ -30,13 +30,14 @@ const MODULES = [
     path: 'src/modules/apply',
     badge: 'm6/m7',
     summary:
-      'Greenhouse/Lever/Ashby + Workday basic + LinkedIn Easy Apply depth; multi-step Next sessions; gated submit.'
+      'Greenhouse/Lever/Ashby + Workday date/multiselect/repeats + LinkedIn Easy Apply submit tracking; multi-step; gated submit; captcha/login pause UX.'
   },
   {
     name: 'ai',
     path: 'src/modules/ai',
     badge: 'm7',
-    summary: 'Ollama tailor / cover / refine with fact checks (extension AI parity).'
+    summary:
+      'Ollama tailor / cover / refine with fact checks; clearer app refine UX (copy, iterate, answer bank).'
   },
   {
     name: 'resume',
@@ -77,8 +78,8 @@ export default function ModulesPanel() {
     <div className="panel">
       <h2>Modules</h2>
       <p className="lede">
-        Must-row parity closeout: Workday/Easy Apply/multi-step, backup export, schedule harden,
-        practice fixtures, packaging polish.
+        Nice polish: captcha/login pause banner, Workday widgets, Easy Apply submit→tracker,
+        app-side refine UX (in-page toolbar deferred).
       </p>
       <div className="module-list">
         {MODULES.map((m) => (

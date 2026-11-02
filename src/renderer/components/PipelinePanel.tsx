@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AppPreferences } from '../../shared/preferences'
+import type { PipelinePause } from '../../shared/pause'
+import { emptyPause } from '../../shared/pause'
 import type {
   ApplyResult,
   BrowserRuntimeStatus,
@@ -9,6 +11,7 @@ import type {
   SearchMeta,
   SessionCheckResult
 } from '../../shared/types'
+import PauseBanner from './PauseBanner'
 
 interface Props {
   prefs: AppPreferences
@@ -25,6 +28,7 @@ export default function PipelinePanel({ prefs }: Props) {
   const [browser, setBrowser] = useState<BrowserRuntimeStatus | null>(null)
   const [sessions, setSessions] = useState<SessionCheckResult[]>([])
   const [applyResults, setApplyResults] = useState<ApplyResult[]>([])
+  const [pause, setPause] = useState<PipelinePause>(emptyPause())
   const [busy, setBusy] = useState(false)
 
   const enabled = [
@@ -38,8 +42,13 @@ export default function PipelinePanel({ prefs }: Props) {
     setBrowser(await window.desktopApi.browserStatus())
   }
 
+  async function refreshPause() {
+    setPause(await window.desktopApi.getPipelinePause())
+  }
+
   useEffect(() => {
     void refreshBrowser()
+    void refreshPause()
     void window.desktopApi.getSearchHistory().then(setHistory)
   }, [prefs.browser])
 
@@ -64,9 +73,39 @@ export default function PipelinePanel({ prefs }: Props) {
       const results = await window.desktopApi.checkSessions()
       setSessions(results)
       await refreshBrowser()
+      await refreshPause()
       setLog('Session check\n' + JSON.stringify(results, null, 2))
     } catch (err) {
       setLog(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function resumeAfterPause() {
+    setBusy(true)
+    try {
+      const result = await window.desktopApi.resumeAfterPause()
+      setSessions(result.sessions)
+      setPause(result.pause)
+      await refreshBrowser()
+      setLog(
+        result.pause.active
+          ? `Still paused: ${result.pause.title}\n${result.pause.message}`
+          : 'Resume OK — sessions clear. You can re-run Search or Apply.'
+      )
+    } catch (err) {
+      setLog(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function dismissPause() {
+    setBusy(true)
+    try {
+      setPause(await window.desktopApi.clearPipelinePause())
+      setLog('Pause dismissed. Automation can continue; resolve captcha/login when ready.')
     } finally {
       setBusy(false)
     }
@@ -92,6 +131,8 @@ export default function PipelinePanel({ prefs }: Props) {
       setHistory(result.history)
       setMatches([])
       setApplyResults([])
+      if (result.pause) setPause(result.pause)
+      else await refreshPause()
       setLog(
         `${result.meta.message}\nQuery: ${result.meta.query} @ ${result.meta.location}\nFixture: ${result.meta.usedFixture}\n\n` +
           JSON.stringify(result.meta.sources, null, 2)
@@ -114,6 +155,7 @@ export default function PipelinePanel({ prefs }: Props) {
         setJobs(source)
         setMeta(result.meta)
         setHistory(result.history)
+        if (result.pause) setPause(result.pause)
       }
       const scored = await window.desktopApi.runMatch(source)
       setMatches(scored)
@@ -140,6 +182,7 @@ export default function PipelinePanel({ prefs }: Props) {
           setJobs(source)
           setMeta(result.meta)
           setHistory(result.history)
+          if (result.pause) setPause(result.pause)
         }
         scored = await window.desktopApi.runMatch(source)
         setMatches(scored)
@@ -165,6 +208,7 @@ export default function PipelinePanel({ prefs }: Props) {
       setMeta(result.meta)
       setHistory(result.history)
       setApplyResults([])
+      await refreshPause()
       setLog(
         `Demo pipeline complete\n${result.meta.message}\nJobs: ${result.jobs.length} · Fits: ${result.matches.filter((m) => m.fits).length} · Notified: ${result.notified}\n\n` +
           JSON.stringify(
@@ -238,6 +282,14 @@ export default function PipelinePanel({ prefs }: Props) {
         profile fields and never auto-submits.
       </p>
 
+      <PauseBanner
+        pause={pause}
+        busy={busy}
+        onResume={() => void resumeAfterPause()}
+        onDismiss={() => void dismissPause()}
+        onOpenBrowser={() => void openBrowser()}
+      />
+
       <div className="actions">
         <button className="btn primary" disabled={busy} onClick={() => void openBrowser()}>
           Open browser
@@ -293,6 +345,7 @@ export default function PipelinePanel({ prefs }: Props) {
               <span className={`pill ${s.ready ? 'ok' : 'bad'}`}>
                 <span className="dot" />
                 {s.source}
+                {s.pauseKind ? ` · ${s.pauseKind}` : ''}
               </span>{' '}
               {s.message}
             </li>
@@ -331,7 +384,12 @@ export default function PipelinePanel({ prefs }: Props) {
                       score {match.score}
                     </span>
                   ) : null}
-                  {apply ? <span className="pill">{apply.status}</span> : null}
+                  {apply ? (
+                    <span className={`pill ${apply.submitted ? 'ok' : ''}`}>
+                      {apply.status}
+                      {apply.submitConfirmed ? ' ✓' : ''}
+                    </span>
+                  ) : null}
                 </li>
               )
             })}

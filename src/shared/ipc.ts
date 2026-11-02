@@ -2,6 +2,7 @@ import type { AppPreferences } from './preferences'
 import type { AnswerBankEntry, StoredProfileBundle } from './profile'
 import type { OllamaStatus } from './ollama'
 import type { ApplicationRow, TrackerStage, TrackerStatus } from './tracker'
+import type { PipelinePause } from './pause'
 import type {
   ApplyResult,
   BrowserRuntimeStatus,
@@ -31,6 +32,7 @@ export interface SearchUiResult {
   jobs: JobListing[]
   meta: SearchMeta
   history: SearchHistoryEntry[]
+  pause?: PipelinePause
 }
 
 export interface TrackerUpdatePatch {
@@ -72,6 +74,12 @@ export interface DesktopApi {
   checkSessions: () => Promise<SessionCheckResult[]>
   browserStatus: () => Promise<BrowserRuntimeStatus>
   closeBrowser: () => Promise<BrowserRuntimeStatus>
+  getPipelinePause: () => Promise<PipelinePause>
+  clearPipelinePause: () => Promise<PipelinePause>
+  resumeAfterPause: () => Promise<{
+    pause: PipelinePause
+    sessions: SessionCheckResult[]
+  }>
   importExtensionProfile: () => Promise<ImportUiResult>
   importSampleProfile: () => Promise<ImportUiResult>
   skipExtensionImport: () => Promise<AppPreferences>

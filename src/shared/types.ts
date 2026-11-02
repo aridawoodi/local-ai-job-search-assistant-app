@@ -55,9 +55,19 @@ export interface ApplyResult {
   fields?: ApplyFieldReport[]
   submitted?: boolean
   stepsAdvanced?: number
+  /** Easy Apply / ATS post-submit confirmation detected on page. */
+  submitConfirmed?: boolean
+  submitLabel?: string
 }
 
-export type PipelineStage = 'idle' | 'search' | 'match' | 'notify' | 'apply' | 'browser'
+export type PipelineStage =
+  | 'idle'
+  | 'search'
+  | 'match'
+  | 'notify'
+  | 'apply'
+  | 'browser'
+  | 'paused'
 
 export interface PipelineStatus {
   stage: PipelineStage
@@ -81,6 +91,8 @@ export interface SessionCheckResult {
   needsLogin: boolean
   message: string
   url: string
+  /** Structured pause reason for richer UX (captcha vs login). */
+  pauseKind?: 'captcha' | 'login' | 'blocked' | null
 }
 
 export interface SourceSearchMeta {

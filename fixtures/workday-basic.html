@@ -11,13 +11,18 @@
       button { margin: 0.5rem 0.35rem 0 0; padding: 0.5rem 1rem; }
       .hint { color: #555; font-size: 0.9rem; }
       .nav { margin-top: 1.25rem; }
+      .repeat-row { border: 1px dashed #bbb; padding: 0.75rem; margin-top: 0.5rem; border-radius: 8px; }
+      .chip-group { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 0.4rem; }
+      .chip-group label { font-weight: 500; display: inline-flex; align-items: center; gap: 0.35rem; }
+      .chip-group input { width: auto; margin: 0; }
     </style>
   </head>
   <body>
-    <h1>Workday-style apply (basic)</h1>
+    <h1>Workday-style apply (basic + widgets)</h1>
     <p class="hint">
-      Offline fixture mimicking myworkdayjobs formField automation ids. Autofill should fill
-      identity fields; EEO left blank unless set; Submit never pressed in confirm mode.
+      Offline fixture mimicking myworkdayjobs formField automation ids, plus date, multiselect,
+      and a repeatable experience row. Autofill should fill identity + reliable widgets; EEO left
+      blank unless set; Submit never pressed in confirm mode.
     </p>
 
     <div id="mainContent" data-automation-id="jobApplicationPage">
@@ -52,6 +57,17 @@
         <input id="wd-city" name="city" autocomplete="address-level2" />
       </div>
 
+      <div data-automation-id="formField-availabilityDate">
+        <label for="wd-start">When can you start? (start date)</label>
+        <input
+          id="wd-start"
+          name="startDate"
+          type="date"
+          data-automation-id="dateSection_startDate"
+          autocomplete="off"
+        />
+      </div>
+
       <div data-automation-id="formField-workAuth">
         <label for="wd-auth">Are you authorized to work in the United States?</label>
         <select id="wd-auth" name="workAuth">
@@ -70,6 +86,40 @@
         </select>
       </div>
 
+      <div data-automation-id="formField-skillsMultiselect">
+        <fieldset>
+          <legend>Skills (multiselect)</legend>
+          <div class="chip-group" role="group" aria-label="Skills multiselect">
+            <label><input type="checkbox" name="skills" value="TypeScript" data-automation-id="multiselectOption-TypeScript" /> TypeScript</label>
+            <label><input type="checkbox" name="skills" value="React" data-automation-id="multiselectOption-React" /> React</label>
+            <label><input type="checkbox" name="skills" value="Node.js" data-automation-id="multiselectOption-Node" /> Node.js</label>
+            <label><input type="checkbox" name="skills" value="Python" data-automation-id="multiselectOption-Python" /> Python</label>
+            <label><input type="checkbox" name="skills" value="SQL" data-automation-id="multiselectOption-SQL" /> SQL</label>
+          </div>
+        </fieldset>
+      </div>
+
+      <div data-automation-id="formField-workExperienceRepeat" data-automation-id-repeat="workExperience">
+        <h2 style="font-size:1.05rem;margin:1.25rem 0 0.35rem">Work experience</h2>
+        <p class="hint">Repeatable section — fill the first row; additional rows via Add.</p>
+        <div class="repeat-row" data-automation-id="workExperience-1" data-repeat-index="1">
+          <div data-automation-id="formField-jobTitle">
+            <label for="wd-title-1">Job Title</label>
+            <input id="wd-title-1" name="jobTitle1" data-automation-id="workExperience-1_jobTitle" autocomplete="organization-title" />
+          </div>
+          <div data-automation-id="formField-company">
+            <label for="wd-co-1">Company</label>
+            <input id="wd-co-1" name="company1" data-automation-id="workExperience-1_company" autocomplete="organization" />
+          </div>
+          <div data-automation-id="formField-fromDate">
+            <label for="wd-from-1">From date</label>
+            <input id="wd-from-1" name="from1" type="date" data-automation-id="workExperience-1_fromDate" />
+          </div>
+        </div>
+        <button type="button" data-automation-id="addAnother" id="wd-add-exp">Add Another</button>
+        <div id="wd-extra-exp"></div>
+      </div>
+
       <div data-automation-id="formField-gender">
         <label for="wd-gender">Gender (voluntary)</label>
         <select id="wd-gender" name="gender">
@@ -86,5 +136,26 @@
         </button>
       </div>
     </div>
+
+    <script>
+      let expN = 1
+      document.getElementById('wd-add-exp').onclick = () => {
+        expN++
+        const wrap = document.createElement('div')
+        wrap.className = 'repeat-row'
+        wrap.setAttribute('data-automation-id', 'workExperience-' + expN)
+        wrap.setAttribute('data-repeat-index', String(expN))
+        wrap.innerHTML =
+          '<div data-automation-id="formField-jobTitle">' +
+          '<label>Job Title</label>' +
+          '<input name="jobTitle' + expN + '" data-automation-id="workExperience-' + expN + '_jobTitle" />' +
+          '</div>' +
+          '<div data-automation-id="formField-company">' +
+          '<label>Company</label>' +
+          '<input name="company' + expN + '" data-automation-id="workExperience-' + expN + '_company" />' +
+          '</div>'
+        document.getElementById('wd-extra-exp').appendChild(wrap)
+      }
+    </script>
   </body>
 </html>
