@@ -75,6 +75,40 @@ export default function ProfilePanel({ bundle, onReload }: Props) {
         <button className="btn primary" disabled={busy} onClick={() => void onImportResume()}>
           Import resume (PDF/DOCX)
         </button>
+        <button
+          className="btn"
+          disabled={busy}
+          onClick={() =>
+            void (async () => {
+              setBusy(true)
+              try {
+                const r = await window.desktopApi.exportProfile()
+                setMsg(r.message)
+              } finally {
+                setBusy(false)
+              }
+            })()
+          }
+        >
+          Export profile JSON
+        </button>
+        <button
+          className="btn"
+          disabled={busy}
+          onClick={() =>
+            void (async () => {
+              setBusy(true)
+              try {
+                const r = await window.desktopApi.exportFullBackup()
+                setMsg(r.message)
+              } finally {
+                setBusy(false)
+              }
+            })()
+          }
+        >
+          Export full backup
+        </button>
       </div>
       {msg ? <p className="hint">{msg}</p> : null}
 

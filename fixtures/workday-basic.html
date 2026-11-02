@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Workday basic practice — Job Search Assistant</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+      [data-automation-id^="formField"] { margin-top: 0.85rem; }
+      label { display: block; font-weight: 600; }
+      input, select, textarea { width: 100%; padding: 0.4rem; margin-top: 0.25rem; }
+      button { margin: 0.5rem 0.35rem 0 0; padding: 0.5rem 1rem; }
+      .hint { color: #555; font-size: 0.9rem; }
+      .nav { margin-top: 1.25rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Workday-style apply (basic)</h1>
+    <p class="hint">
+      Offline fixture mimicking myworkdayjobs formField automation ids. Autofill should fill
+      identity fields; EEO left blank unless set; Submit never pressed in confirm mode.
+    </p>
+
+    <div id="mainContent" data-automation-id="jobApplicationPage">
+      <div data-automation-id="formField-legalNameSection">
+        <div data-automation-id="formField-firstName">
+          <label for="wd-first">First Name</label>
+          <input id="wd-first" name="firstName" data-automation-id="legalNameSection_firstName" autocomplete="given-name" />
+        </div>
+        <div data-automation-id="formField-lastName">
+          <label for="wd-last">Last Name</label>
+          <input id="wd-last" name="lastName" data-automation-id="legalNameSection_lastName" autocomplete="family-name" />
+        </div>
+      </div>
+
+      <div data-automation-id="formField-email">
+        <label for="wd-email">Email Address</label>
+        <input id="wd-email" name="email" type="email" autocomplete="email" />
+      </div>
+
+      <div data-automation-id="formField-phone">
+        <label for="wd-phone">Phone Number</label>
+        <input id="wd-phone" name="phone" type="tel" autocomplete="tel" />
+      </div>
+
+      <div data-automation-id="formField-country">
+        <label for="wd-country">Country</label>
+        <input id="wd-country" name="country" autocomplete="country" />
+      </div>
+
+      <div data-automation-id="formField-city">
+        <label for="wd-city">City</label>
+        <input id="wd-city" name="city" autocomplete="address-level2" />
+      </div>
+
+      <div data-automation-id="formField-workAuth">
+        <label for="wd-auth">Are you authorized to work in the United States?</label>
+        <select id="wd-auth" name="workAuth">
+          <option value="">Select one</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+      </div>
+
+      <div data-automation-id="formField-sponsorship">
+        <label for="wd-sponsor">Will you now or in the future require sponsorship?</label>
+        <select id="wd-sponsor" name="sponsorship">
+          <option value="">Select one</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+      </div>
+
+      <div data-automation-id="formField-gender">
+        <label for="wd-gender">Gender (voluntary)</label>
+        <select id="wd-gender" name="gender">
+          <option value="">Decline</option>
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+        </select>
+      </div>
+
+      <div class="nav">
+        <button type="button" data-automation-id="bottom-navigation-next-button">Next</button>
+        <button type="submit" data-automation-id="bottom-navigation-submit-button" onclick="alert('Submit'); return false;">
+          Submit
+        </button>
+      </div>
+    </div>
+  </body>
+</html>

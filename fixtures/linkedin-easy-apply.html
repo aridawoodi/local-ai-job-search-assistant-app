@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>LinkedIn Easy Apply practice — Job Search Assistant</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+      .jobs-apply-button { padding: 0.55rem 1rem; background: #0a66c2; color: #fff; border: 0; border-radius: 24px; cursor: pointer; }
+      .jobs-easy-apply-modal {
+        display: none; margin-top: 1.25rem; border: 1px solid #ccc; border-radius: 12px; padding: 1rem 1.25rem;
+        box-shadow: 0 8px 24px rgba(0,0,0,.12);
+      }
+      .jobs-easy-apply-modal.open { display: block; }
+      label { display: block; margin-top: 0.75rem; font-weight: 600; }
+      input, select, textarea { width: 100%; padding: 0.4rem; margin-top: 0.25rem; }
+      .footer { margin-top: 1rem; display: flex; gap: 0.5rem; }
+      button.secondary { padding: 0.45rem 0.9rem; }
+      .step { display: none; }
+      .step.active { display: block; }
+      .hint { color: #555; font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Senior Frontend Engineer</h1>
+    <p>Example Corp · Remote</p>
+    <p class="hint">Practice Easy Apply: open modal → fill step 1 → Next → fill step 2 → Review/Submit.</p>
+    <button type="button" class="jobs-apply-button" id="easy-apply-btn">Easy Apply</button>
+
+    <div
+      class="jobs-easy-apply-modal"
+      id="easy-modal"
+      role="dialog"
+      data-test-modal-id="easy-apply-modal"
+      aria-label="Apply to Senior Frontend Engineer"
+    >
+      <h2>Apply to Example Corp</h2>
+
+      <div class="step active" data-step="1">
+        <label for="li-first">First name</label>
+        <input id="li-first" name="firstName" autocomplete="given-name" />
+        <label for="li-last">Last name</label>
+        <input id="li-last" name="lastName" autocomplete="family-name" />
+        <label for="li-email">Email</label>
+        <input id="li-email" name="email" type="email" autocomplete="email" />
+        <label for="li-phone">Phone</label>
+        <input id="li-phone" name="phone" type="tel" autocomplete="tel" />
+        <div class="footer">
+          <button type="button" class="secondary" data-easy-apply-next-button id="next-1">Next</button>
+        </div>
+      </div>
+
+      <div class="step" data-step="2">
+        <label for="li-linkedin">LinkedIn profile</label>
+        <input id="li-linkedin" name="linkedin" />
+        <label for="li-city">City</label>
+        <input id="li-city" name="city" autocomplete="address-level2" />
+        <label for="li-sponsor">Will you need visa sponsorship?</label>
+        <select id="li-sponsor" name="sponsorship">
+          <option value="">Select</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+        <div class="footer">
+          <button type="button" class="secondary" id="back-2">Back</button>
+          <button type="button" class="secondary" data-easy-apply-next-button id="next-2">Next</button>
+        </div>
+      </div>
+
+      <div class="step" data-step="3">
+        <p>Review your application, then submit.</p>
+        <label for="li-cover">Cover letter (optional)</label>
+        <textarea id="li-cover" name="cover" rows="3"></textarea>
+        <div class="footer">
+          <button type="button" class="secondary" id="back-3">Back</button>
+          <button type="button" id="submit-final" onclick="alert('Submitted'); return false;">Submit application</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const modal = document.getElementById('easy-modal')
+      document.getElementById('easy-apply-btn').onclick = () => modal.classList.add('open')
+      function showStep(n) {
+        document.querySelectorAll('.step').forEach((el) => {
+          el.classList.toggle('active', el.getAttribute('data-step') === String(n))
+        })
+      }
+      document.getElementById('next-1').onclick = () => showStep(2)
+      document.getElementById('next-2').onclick = () => showStep(3)
+      document.getElementById('back-2').onclick = () => showStep(1)
+      document.getElementById('back-3').onclick = () => showStep(2)
+    </script>
+  </body>
+</html>

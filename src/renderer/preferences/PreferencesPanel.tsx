@@ -21,6 +21,8 @@ export default function PreferencesPanel({
 }: Props) {
   const [ollama, setOllama] = useState<OllamaStatus | null>(null)
   const [importMsg, setImportMsg] = useState('')
+  const [exportMsg, setExportMsg] = useState('')
+  const [scheduleMsg, setScheduleMsg] = useState('')
   const [careerUrlsText, setCareerUrlsText] = useState(
     (prefs.companyCareerUrls || []).join('\n')
   )
@@ -107,9 +109,34 @@ export default function PreferencesPanel({
             {prefs.applySafety === 'confirm'
               ? 'Disabled while confirm mode is on — you must confirm fills; Submit is never pressed automatically.'
               : prefs.allowAutoSubmit
-                ? 'Unattended will click a final Submit/Apply after fill (not Next/Continue). Respects daily action cap.'
+                ? 'Unattended will click a final Submit/Apply after fill. Respects daily action cap.'
                 : 'Unattended fills forms only; you submit manually.'}
           </p>
+          <label className="check" style={{ marginTop: '0.65rem' }}>
+            <input
+              type="checkbox"
+              checked={prefs.allowAdvanceSteps}
+              onChange={(e) => void onChange({ allowAdvanceSteps: e.target.checked })}
+            />
+            Advance multi-step / Easy Apply (Next/Continue)
+          </label>
+          <p className="hint">
+            After fill, click Next/Continue and re-fill each step (Workday basic, LinkedIn Easy Apply,
+            generic wizards). Confirm mode still never auto-submits.
+          </p>
+          <label htmlFor="maxFormSteps" style={{ marginTop: '0.5rem' }}>
+            Max form steps
+          </label>
+          <input
+            id="maxFormSteps"
+            type="number"
+            min={1}
+            max={20}
+            value={prefs.maxFormSteps}
+            onChange={(e) =>
+              void onChange({ maxFormSteps: Math.max(1, Number(e.target.value) || 1) })
+            }
+          />
         </div>
 
         <div className="field">
@@ -199,9 +226,9 @@ export default function PreferencesPanel({
         </div>
 
         <div className="field">
-          <label>Extension profile import</label>
+          <label>Extension profile import / export</label>
           <p className="hint">
-            Day-one support for <code>job-apply-profile.json</code> and{' '}
+            Round-trip <code>job-apply-profile.json</code> and{' '}
             <code>kind: job-apply-assistant-backup</code>. Status:{' '}
             <strong>{prefs.extensionImportStatus.replace('_', ' ')}</strong>
           </p>
@@ -215,8 +242,33 @@ export default function PreferencesPanel({
             <button className="btn" type="button" onClick={() => void onSkipImport()}>
               Skip for now
             </button>
+            <button
+              className="btn"
+              type="button"
+              onClick={() =>
+                void (async () => {
+                  const r = await window.desktopApi.exportProfile()
+                  setExportMsg(r.message)
+                })()
+              }
+            >
+              Export profile
+            </button>
+            <button
+              className="btn"
+              type="button"
+              onClick={() =>
+                void (async () => {
+                  const r = await window.desktopApi.exportFullBackup()
+                  setExportMsg(r.message)
+                })()
+              }
+            >
+              Export full backup
+            </button>
           </div>
           {importMsg ? <p className="hint">{importMsg}</p> : null}
+          {exportMsg ? <p className="hint">{exportMsg}</p> : null}
         </div>
 
         <div className="field">
@@ -301,7 +353,7 @@ export default function PreferencesPanel({
           <label htmlFor="schedule">Scheduled search (minutes)</label>
           <p className="hint">
             0 = manual only. When set (≥5), runs search → match → notify on an interval while the app
-            is open.
+            is open. A first run kicks ~8s after enabling for end-to-end verification.
           </p>
           <input
             id="schedule"
@@ -313,6 +365,33 @@ export default function PreferencesPanel({
               void onChange({ scheduledSearchMinutes: Number(e.target.value) || 0 })
             }
           />
+          <label className="check" style={{ marginTop: '0.65rem' }}>
+            <input
+              type="checkbox"
+              checked={prefs.scheduledIncludeApply}
+              onChange={(e) => void onChange({ scheduledIncludeApply: e.target.checked })}
+            />
+            Include unattended apply on schedule (best-fit jobs)
+          </label>
+          <p className="hint">
+            Only runs when apply safety is unattended. Confirm mode still queues manually.
+          </p>
+          <div className="actions" style={{ marginTop: '0.5rem' }}>
+            <button
+              className="btn"
+              type="button"
+              onClick={() =>
+                void (async () => {
+                  setScheduleMsg('Running scheduled pipeline…')
+                  const r = await window.desktopApi.runScheduledNow()
+                  setScheduleMsg(r.message)
+                })()
+              }
+            >
+              Run scheduled pipeline now
+            </button>
+          </div>
+          {scheduleMsg ? <p className="hint">{scheduleMsg}</p> : null}
         </div>
 
         <div className="field">
