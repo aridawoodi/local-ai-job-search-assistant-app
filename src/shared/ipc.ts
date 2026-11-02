@@ -7,6 +7,7 @@ import type {
   JobListing,
   MatchResult,
   PipelineStatus,
+  SearchHistoryEntry,
   SearchMeta,
   SessionCheckResult
 } from './types'
@@ -23,6 +24,7 @@ export interface ImportUiResult {
 export interface SearchUiResult {
   jobs: JobListing[]
   meta: SearchMeta
+  history: SearchHistoryEntry[]
 }
 
 export interface DesktopApi {
@@ -31,14 +33,17 @@ export interface DesktopApi {
   getProfile: () => Promise<StoredProfileBundle>
   getPipelineStatus: () => Promise<PipelineStatus>
   runSearch: () => Promise<SearchUiResult>
+  getSearchHistory: () => Promise<SearchHistoryEntry[]>
   runMatch: (jobs: JobListing[]) => Promise<MatchResult[]>
   notifyBestFits: (matches: MatchResult[]) => Promise<{ notified: number; skippedDuplicate: number }>
   runApply: (jobIds: string[]) => Promise<ApplyResult[]>
+  confirmApply: (jobIds: string[]) => Promise<ApplyResult[]>
   runPipeline: () => Promise<{
     jobs: JobListing[]
     matches: MatchResult[]
     notified: number
     meta: SearchMeta
+    history: SearchHistoryEntry[]
   }>
   openBrowser: () => Promise<BrowserRuntimeStatus>
   checkSessions: () => Promise<SessionCheckResult[]>

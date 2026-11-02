@@ -1,17 +1,29 @@
 import type { AppPreferences } from '../../shared/preferences'
-import type { JobListing } from '../../shared/types'
+import type { JobListing, JobSource, SearchHistoryEntry, SourceSearchMeta } from '../../shared/types'
 import type { UserProfile } from '../../shared/profile'
 import type { Page } from 'playwright'
 import { defaultFixturePath, searchIndeed } from './indeed'
+import { defaultLinkedInFixturePath, searchLinkedIn } from './linkedin'
+import { defaultGoogleFixturePath, searchGoogleJobs } from './google'
+import { defaultCompanyFixturePath, searchCompanySites } from './company'
 
 export interface SearchRunResult {
   jobs: JobListing[]
-  source: 'indeed'
+  sources: SourceSearchMeta[]
   usedFixture: boolean
   message: string
   searchUrl: string
   query: string
   location: string
+  runId: string
+  historyEntry: SearchHistoryEntry
+}
+
+const history: SearchHistoryEntry[] = []
+const MAX_HISTORY = 20
+
+export function getSearchHistory(): SearchHistoryEntry[] {
+  return [...history]
 }
 
 export function resolveSearchQuery(
@@ -35,9 +47,13 @@ export function resolveSearchQuery(
   return { query, location }
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
 /**
- * Browser-driven job search. Milestone 2 first source: Indeed (most reliable
- * without a forced login). LinkedIn / Google Jobs land in later milestones.
+ * Orchestrated multi-source search (Milestone 3).
+ * Runs enabled drivers sequentially with a soft rate limit. No job-board APIs.
  */
 export async function searchJobs(
   prefs: AppPreferences,
@@ -48,36 +64,145 @@ export async function searchJobs(
     cwd: string
   }
 ): Promise<SearchRunResult> {
-  if (!prefs.enabledSources.indeed) {
-    return {
-      jobs: [],
-      source: 'indeed',
-      usedFixture: false,
-      message: 'Indeed is disabled in preferences (enabledSources.indeed).',
-      searchUrl: '',
-      query: '',
-      location: ''
-    }
+  const { query, location } = resolveSearchQuery(prefs, options.profile)
+  const runId = `run_${Date.now().toString(36)}`
+  const sources: SourceSearchMeta[] = []
+  const collected: JobListing[] = []
+  const gap = Math.max(0, prefs.sourceRateLimitMs || 0)
+  let first = true
+
+  const maybeWait = async () => {
+    if (!first && gap > 0) await sleep(gap)
+    first = false
   }
 
-  const { query, location } = resolveSearchQuery(prefs, options.profile)
-  const fixturePath = defaultFixturePath(options.appPath, options.cwd)
-  const result = await searchIndeed(options.page, {
+  if (prefs.enabledSources.indeed) {
+    await maybeWait()
+    const result = await searchIndeed(options.page, {
+      query,
+      location,
+      fixturePath: defaultFixturePath(options.appPath, options.cwd),
+      maxResults: 20
+    })
+    collected.push(...result.jobs)
+    sources.push({
+      source: 'indeed',
+      usedFixture: result.usedFixture,
+      message: result.message,
+      searchUrl: result.searchUrl,
+      jobCount: result.jobs.length
+    })
+  }
+
+  if (prefs.enabledSources.google) {
+    await maybeWait()
+    const result = await searchGoogleJobs(options.page, {
+      query,
+      location,
+      fixturePath: defaultGoogleFixturePath(options.appPath, options.cwd),
+      maxResults: 20
+    })
+    collected.push(...result.jobs)
+    sources.push({
+      source: 'google',
+      usedFixture: result.usedFixture,
+      message: result.message,
+      searchUrl: result.searchUrl,
+      jobCount: result.jobs.length
+    })
+  }
+
+  if (prefs.enabledSources.linkedin) {
+    await maybeWait()
+    const result = await searchLinkedIn(options.page, {
+      query,
+      location,
+      fixturePath: defaultLinkedInFixturePath(options.appPath, options.cwd),
+      maxResults: 20
+    })
+    collected.push(...result.jobs)
+    sources.push({
+      source: 'linkedin',
+      usedFixture: result.usedFixture,
+      message: result.message,
+      searchUrl: result.searchUrl,
+      jobCount: result.jobs.length
+    })
+  }
+
+  if (prefs.enabledSources.companySites) {
+    await maybeWait()
+    const result = await searchCompanySites(options.page, {
+      urls: prefs.companyCareerUrls || [],
+      fixturePath: defaultCompanyFixturePath(options.appPath, options.cwd),
+      maxResults: 25,
+      rateLimitMs: Math.min(gap, 1000)
+    })
+    collected.push(...result.jobs)
+    sources.push({
+      source: 'company',
+      usedFixture: result.usedFixture,
+      message: result.message,
+      searchUrl: result.searchUrl,
+      jobCount: result.jobs.length
+    })
+  }
+
+  if (!sources.length) {
+    const empty: SearchRunResult = {
+      jobs: [],
+      sources: [],
+      usedFixture: false,
+      message: 'No search sources enabled — turn on Indeed / Google / LinkedIn / company sites in Preferences.',
+      searchUrl: '',
+      query,
+      location,
+      runId,
+      historyEntry: {
+        id: runId,
+        at: new Date().toISOString(),
+        query,
+        location,
+        jobCount: 0,
+        sources: [],
+        message: 'No sources enabled'
+      }
+    }
+    pushHistory(empty.historyEntry)
+    return empty
+  }
+
+  const jobs = dedupeJobs(collected)
+  const usedFixture = sources.some((s) => s.usedFixture)
+  const message = sources.map((s) => `${s.source}: ${s.message}`).join(' · ')
+  const searchUrl = sources.map((s) => s.searchUrl).filter(Boolean).join(' | ')
+  const historyEntry: SearchHistoryEntry = {
+    id: runId,
+    at: new Date().toISOString(),
     query,
     location,
-    fixturePath,
-    maxResults: 25
-  })
+    jobCount: jobs.length,
+    sources: sources.map((s) => s.source as JobSource),
+    message
+  }
+  pushHistory(historyEntry)
 
   return {
-    jobs: dedupeJobs(result.jobs),
-    source: 'indeed',
-    usedFixture: result.usedFixture,
-    message: result.message,
-    searchUrl: result.searchUrl,
+    jobs,
+    sources,
+    usedFixture,
+    message,
+    searchUrl,
     query,
-    location
+    location,
+    runId,
+    historyEntry
   }
+}
+
+function pushHistory(entry: SearchHistoryEntry): void {
+  history.unshift(entry)
+  if (history.length > MAX_HISTORY) history.length = MAX_HISTORY
 }
 
 function dedupeJobs(jobs: JobListing[]): JobListing[] {
@@ -85,8 +210,21 @@ function dedupeJobs(jobs: JobListing[]): JobListing[] {
   const out: JobListing[] = []
   for (const job of jobs) {
     if (seen.has(job.id)) continue
+    // Soft URL dedupe across sources
+    const urlKey = normalizeUrlKey(job.url)
+    if (urlKey && seen.has(`url:${urlKey}`)) continue
     seen.add(job.id)
+    if (urlKey) seen.add(`url:${urlKey}`)
     out.push(job)
   }
   return out
+}
+
+function normalizeUrlKey(url: string): string {
+  try {
+    const u = new URL(url)
+    return `${u.hostname}${u.pathname}`.toLowerCase().replace(/\/$/, '')
+  } catch {
+    return url.toLowerCase()
+  }
 }

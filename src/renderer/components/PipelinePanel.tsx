@@ -5,6 +5,7 @@ import type {
   BrowserRuntimeStatus,
   JobListing,
   MatchResult,
+  SearchHistoryEntry,
   SearchMeta,
   SessionCheckResult
 } from '../../shared/types'
@@ -15,14 +16,23 @@ interface Props {
 
 export default function PipelinePanel({ prefs }: Props) {
   const [log, setLog] = useState(
-    'Open the automation browser, optionally check sessions, then Run search → match → notify.'
+    'Open the automation browser, optionally check sessions, then Run search → match → notify. Apply fills forms with safety prefs (never auto-submits).'
   )
   const [jobs, setJobs] = useState<JobListing[]>([])
   const [matches, setMatches] = useState<MatchResult[]>([])
   const [meta, setMeta] = useState<SearchMeta | null>(null)
+  const [history, setHistory] = useState<SearchHistoryEntry[]>([])
   const [browser, setBrowser] = useState<BrowserRuntimeStatus | null>(null)
   const [sessions, setSessions] = useState<SessionCheckResult[]>([])
+  const [applyResults, setApplyResults] = useState<ApplyResult[]>([])
   const [busy, setBusy] = useState(false)
+
+  const enabled = [
+    prefs.enabledSources.indeed && 'Indeed',
+    prefs.enabledSources.google && 'Google',
+    prefs.enabledSources.linkedin && 'LinkedIn',
+    prefs.enabledSources.companySites && 'Company sites'
+  ].filter(Boolean)
 
   async function refreshBrowser() {
     setBrowser(await window.desktopApi.browserStatus())
@@ -30,6 +40,7 @@ export default function PipelinePanel({ prefs }: Props) {
 
   useEffect(() => {
     void refreshBrowser()
+    void window.desktopApi.getSearchHistory().then(setHistory)
   }, [prefs.browser])
 
   async function openBrowser() {
@@ -78,10 +89,12 @@ export default function PipelinePanel({ prefs }: Props) {
       const result = await window.desktopApi.runSearch()
       setJobs(result.jobs)
       setMeta(result.meta)
+      setHistory(result.history)
       setMatches([])
+      setApplyResults([])
       setLog(
         `${result.meta.message}\nQuery: ${result.meta.query} @ ${result.meta.location}\nFixture: ${result.meta.usedFixture}\n\n` +
-          JSON.stringify(result.jobs, null, 2)
+          JSON.stringify(result.meta.sources, null, 2)
       )
       await refreshBrowser()
     } catch (err) {
@@ -100,6 +113,7 @@ export default function PipelinePanel({ prefs }: Props) {
         source = result.jobs
         setJobs(source)
         setMeta(result.meta)
+        setHistory(result.history)
       }
       const scored = await window.desktopApi.runMatch(source)
       setMatches(scored)
@@ -125,6 +139,7 @@ export default function PipelinePanel({ prefs }: Props) {
           source = result.jobs
           setJobs(source)
           setMeta(result.meta)
+          setHistory(result.history)
         }
         scored = await window.desktopApi.runMatch(source)
         setMatches(scored)
@@ -148,6 +163,8 @@ export default function PipelinePanel({ prefs }: Props) {
       setJobs(result.jobs)
       setMatches(result.matches)
       setMeta(result.meta)
+      setHistory(result.history)
+      setApplyResults([])
       setLog(
         `Demo pipeline complete\n${result.meta.message}\nJobs: ${result.jobs.length} · Fits: ${result.matches.filter((m) => m.fits).length} · Notified: ${result.notified}\n\n` +
           JSON.stringify(
@@ -172,15 +189,41 @@ export default function PipelinePanel({ prefs }: Props) {
   async function runApply() {
     setBusy(true)
     try {
-      const ids = (jobs.length ? jobs : []).map((j) => j.id)
+      const ids = jobs.map((j) => j.id)
       if (!ids.length) {
-        setLog('No jobs loaded — run Search first. Apply does not auto-submit in M2.')
+        setLog('No jobs loaded — run Search first.')
         return
       }
-      const results: ApplyResult[] = await window.desktopApi.runApply(ids)
+      const results = await window.desktopApi.runApply(ids.slice(0, 3))
+      setApplyResults(results)
       setLog(
-        `Apply (mode=${prefs.applySafety}, M2 no submit) →\n` + JSON.stringify(results, null, 2)
+        `Apply (mode=${prefs.applySafety}) →\n` + JSON.stringify(results, null, 2)
       )
+      await refreshBrowser()
+    } catch (err) {
+      setLog(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function confirmApply() {
+    setBusy(true)
+    try {
+      const pending = applyResults
+        .filter((r) => r.status === 'pending_confirm')
+        .map((r) => r.jobId)
+      const ids = pending.length ? pending : jobs.map((j) => j.id).slice(0, 3)
+      if (!ids.length) {
+        setLog('Nothing to confirm — run Apply first in confirm mode.')
+        return
+      }
+      const results = await window.desktopApi.confirmApply(ids)
+      setApplyResults(results)
+      setLog(`Confirm apply →\n` + JSON.stringify(results, null, 2))
+      await refreshBrowser()
+    } catch (err) {
+      setLog(err instanceof Error ? err.message : String(err))
     } finally {
       setBusy(false)
     }
@@ -190,9 +233,9 @@ export default function PipelinePanel({ prefs }: Props) {
     <div className="panel">
       <h2>Automation pipeline</h2>
       <p className="lede">
-        First source: <strong>Indeed</strong> (live browser scrape). Browser:{' '}
-        <strong>{prefs.browser}</strong>, safety: <strong>{prefs.applySafety}</strong>. M2 does
-        search → match → desktop notify; apply never auto-submits.
+        Sources: <strong>{enabled.length ? enabled.join(', ') : 'none'}</strong>. Browser:{' '}
+        <strong>{prefs.browser}</strong>, safety: <strong>{prefs.applySafety}</strong>. Apply fills
+        profile fields and never auto-submits.
       </p>
 
       <div className="actions">
@@ -221,7 +264,10 @@ export default function PipelinePanel({ prefs }: Props) {
           Notify
         </button>
         <button className="btn" disabled={busy} onClick={() => void runApply()}>
-          Apply (safe stub)
+          Apply / fill
+        </button>
+        <button className="btn" disabled={busy} onClick={() => void confirmApply()}>
+          Confirm apply
         </button>
       </div>
 
@@ -235,7 +281,8 @@ export default function PipelinePanel({ prefs }: Props) {
       {meta ? (
         <p className="hint">
           Last search: {meta.query} @ {meta.location}
-          {meta.usedFixture ? ' · fixture fallback' : ' · live Indeed'}
+          {meta.usedFixture ? ' · fixture fallback used' : ' · live scrape'} ·{' '}
+          {meta.sources.map((s) => `${s.source}:${s.jobCount}`).join(', ')}
         </p>
       ) : null}
 
@@ -253,21 +300,38 @@ export default function PipelinePanel({ prefs }: Props) {
         </ul>
       ) : null}
 
+      {history.length ? (
+        <div className="job-list">
+          <h3>Search history</h3>
+          <ul>
+            {history.slice(0, 8).map((h) => (
+              <li key={h.id}>
+                <strong>{h.query}</strong> @ {h.location} · {h.jobCount} jobs ·{' '}
+                {h.sources.join('+')} · {new Date(h.at).toLocaleString()}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {jobs.length ? (
         <div className="job-list">
           <h3>Job list ({jobs.length})</h3>
           <ul>
             {jobs.map((job) => {
               const match = matches.find((m) => m.jobId === job.id)
+              const apply = applyResults.find((a) => a.jobId === job.id)
               return (
                 <li key={job.id}>
                   <strong>{job.title}</strong> · {job.company}
                   {job.location ? ` · ${job.location}` : ''}
+                  <span className="pill">{job.source}</span>
                   {match ? (
                     <span className={`pill ${match.fits ? 'ok' : ''}`}>
                       score {match.score}
                     </span>
                   ) : null}
+                  {apply ? <span className="pill">{apply.status}</span> : null}
                 </li>
               )
             })}

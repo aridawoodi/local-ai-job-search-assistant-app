@@ -15,16 +15,18 @@ See [docs/stack-decision.md](docs/stack-decision.md).
 | macOS Intel + Apple Silicon | `dmg` `x64` + `arm64` |
 | Windows | `nsis` `x64` |
 
-## Milestone 2 (this PR)
+## Milestone 3 (this branch)
 
-- Playwright **BrowserController**: launch Chrome or Edge with a **dedicated persistent profile** under Electron `userData`
-- **Open browser** / **Check sessions** UI (Indeed + LinkedIn probes; user logs in manually)
-- **First search source: Indeed** (live result-card scrape — no job-board API). LinkedIn/Google Jobs come later
-- Parse cards into the in-app job list; **match** via ported extension `lib/match.js` against imported profile
-- **Desktop notifications** for best fits (session dedupe)
-- Apply safety respected: **no auto-submit** in M2 (confirm queues only; unattended skipped)
-
-If Indeed shows a captcha or returns no cards, the run can fall back to `fixtures/indeed-results.html` so demos still work — complete the captcha in the automation window and re-run for live data.
+- **Multi-source search** (no job-board APIs):
+  - **Indeed** — live result cards (fixture fallback)
+  - **Google Jobs** — public `udm=8` scrape (fixture fallback)
+  - **LinkedIn** — job search UI when logged in (fixture fallback)
+  - **Company career sites** — user-configured listing URLs + generic scrape stub
+- Source enable toggles, soft rate limit between sources, in-app **search history**
+- **Apply-fill** ported from extension patterns (Greenhouse / Lever / Ashby / LinkedIn Easy Apply / generic):
+  - **Confirm** (default): queue → user Confirm → autofill
+  - **Unattended**: autofill without per-job click
+  - **Never auto-submits** (no Submit / Apply / Next clicks); practice form at `fixtures/practice-apply-form.html`
 
 ### Chrome ↔ Edge profiles
 
@@ -47,17 +49,17 @@ npm run dist:win
 ### Demo flow
 
 1. First launch → import sample/extension profile (or skip).
-2. Preferences → set Indeed query/location (optional; otherwise derived from profile).
-3. Pipeline → **Open browser** → log into Indeed/LinkedIn manually if you want.
+2. Preferences → enable sources; set query/location; optional company career URLs.
+3. Pipeline → **Open browser** → log into LinkedIn (and others) manually if needed.
 4. **Check sessions** → **Run search → match → notify**.
-5. Approve OS notification permission when prompted.
+5. **Apply / fill** → in confirm mode, **Confirm apply** to autofill (Submit stays manual).
 
 ### Import a profile
 
 1. First launch → **Import extension profile** (or **Load sample profile** / **Skip**).
 2. Or Preferences → Import from file.
 3. Accepts extension Settings export (`job-apply-profile.json`) and full backups (`kind: job-apply-assistant-backup`).
-4. Fixtures: `fixtures/sample-profile.json`, `fixtures/sample-backup.json`, `fixtures/indeed-results.html`.
+4. Fixtures: `fixtures/sample-profile.json`, `fixtures/sample-backup.json`, `fixtures/*-results.html`, `fixtures/practice-apply-form.html`.
 
 Prefs and profile survive restart under Electron `userData`. Automation cookies live under `userData/browser-profiles/`.
 
@@ -68,8 +70,8 @@ electron/main/     IPC, prefs/profile stores, Ollama, BrowserController
 electron/preload/  contextBridge API
 src/renderer/      React UI
 src/shared/        Types, prefs, profile schema, IPC contract
-src/modules/       search (Indeed) | match | notify | apply | import
-fixtures/          Sample profile + Indeed results HTML
+src/modules/       search (Indeed/Google/LinkedIn/company) | match | notify | apply/fill | import
+fixtures/          Sample profile + source result HTML + practice apply form
 docs/              Stack decision mirror
 ```
 

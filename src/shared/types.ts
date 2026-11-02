@@ -2,13 +2,15 @@
 
 import type { BrowserPreference } from './preferences'
 
+export type JobSource = 'google' | 'linkedin' | 'indeed' | 'company' | 'other'
+
 export interface JobListing {
   id: string
   title: string
   company: string
   location?: string
   url: string
-  source: 'google' | 'linkedin' | 'indeed' | 'company' | 'other'
+  source: JobSource
   snippet?: string
   postedAt?: string
   raw?: Record<string, unknown>
@@ -26,10 +28,32 @@ export interface MatchResult {
   missing?: string[]
 }
 
+export type ApplyStatus =
+  | 'pending_confirm'
+  | 'filled'
+  | 'needs_you'
+  | 'submitted'
+  | 'skipped'
+  | 'failed'
+  | 'not_implemented'
+
+export interface ApplyFieldReport {
+  label: string
+  key?: string
+  status: 'filled' | 'skipped' | 'missing' | 'needs_you'
+  detail?: string
+}
+
 export interface ApplyResult {
   jobId: string
-  status: 'pending_confirm' | 'submitted' | 'skipped' | 'failed' | 'not_implemented'
+  status: ApplyStatus
   message: string
+  url?: string
+  adapter?: string
+  filledCount?: number
+  needsYouCount?: number
+  fields?: ApplyFieldReport[]
+  submitted?: boolean
 }
 
 export type PipelineStage = 'idle' | 'search' | 'match' | 'notify' | 'apply' | 'browser'
@@ -58,11 +82,30 @@ export interface SessionCheckResult {
   url: string
 }
 
+export interface SourceSearchMeta {
+  source: JobSource
+  usedFixture: boolean
+  message: string
+  searchUrl: string
+  jobCount: number
+}
+
 export interface SearchMeta {
-  source: 'indeed'
+  sources: SourceSearchMeta[]
   usedFixture: boolean
   message: string
   searchUrl: string
   query: string
   location: string
+  runId: string
+}
+
+export interface SearchHistoryEntry {
+  id: string
+  at: string
+  query: string
+  location: string
+  jobCount: number
+  sources: JobSource[]
+  message: string
 }

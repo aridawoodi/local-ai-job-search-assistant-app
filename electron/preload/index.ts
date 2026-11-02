@@ -10,10 +10,13 @@ const api: DesktopApi = {
   getProfile: () => ipcRenderer.invoke('profile:get'),
   getPipelineStatus: () => ipcRenderer.invoke('pipeline:status'),
   runSearch: () => ipcRenderer.invoke('pipeline:search'),
+  getSearchHistory: () => ipcRenderer.invoke('pipeline:search-history'),
   runMatch: (jobs: JobListing[]) => ipcRenderer.invoke('pipeline:match', jobs),
   notifyBestFits: (matches: MatchResult[]) =>
     ipcRenderer.invoke('pipeline:notify', matches),
   runApply: (jobIds: string[]) => ipcRenderer.invoke('pipeline:apply', jobIds),
+  confirmApply: (jobIds: string[]) =>
+    ipcRenderer.invoke('pipeline:confirm-apply', jobIds),
   runPipeline: () => ipcRenderer.invoke('pipeline:run'),
   openBrowser: () => ipcRenderer.invoke('browser:open'),
   checkSessions: () => ipcRenderer.invoke('browser:check-sessions'),

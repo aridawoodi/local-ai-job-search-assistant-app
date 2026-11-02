@@ -14,10 +14,17 @@ export interface AppPreferences {
   maxActionsPerDay: number
   matchThreshold: number
   ollamaUrl: string
-  /** Indeed search query; empty → derive from profile title/skills. */
+  /** Search query; empty → derive from profile title/skills. */
   searchQuery: string
-  /** Indeed location; empty → derive from profile or Remote. */
+  /** Search location; empty → derive from profile or Remote. */
   searchLocation: string
+  /**
+   * User-configured company career listing URLs (one per line in UI).
+   * Scraped with a generic job-card heuristic when companySites is enabled.
+   */
+  companyCareerUrls: string[]
+  /** Soft delay between enabled sources (ms). */
+  sourceRateLimitMs: number
   enabledSources: {
     google: boolean
     linkedin: boolean
@@ -36,9 +43,14 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   ollamaUrl: 'http://127.0.0.1:11434',
   searchQuery: '',
   searchLocation: '',
+  companyCareerUrls: [
+    'https://boards.greenhouse.io/stripe',
+    'https://jobs.lever.co/netflix'
+  ],
+  sourceRateLimitMs: 1500,
   enabledSources: {
-    // M2: Indeed is the first live source. Others stay off until drivers ship.
-    google: false,
+    // M3: Indeed + Google Jobs on by default; LinkedIn + company stubs opt-in.
+    google: true,
     linkedin: false,
     indeed: true,
     companySites: false
