@@ -1,0 +1,1 @@
+# local-ai-job-search-assistant-app
