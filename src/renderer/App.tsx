@@ -9,8 +9,11 @@ import PipelinePanel from './components/PipelinePanel'
 import ModulesPanel from './components/ModulesPanel'
 import ProfilePanel from './components/ProfilePanel'
 import Onboarding from './components/Onboarding'
+import MatchInbox from './components/MatchInbox'
+import ApplyQueue from './components/ApplyQueue'
+import TrackerPanel from './components/TrackerPanel'
 
-type Tab = 'home' | 'profile' | 'preferences' | 'modules'
+type Tab = 'home' | 'matches' | 'apply' | 'tracker' | 'profile' | 'preferences' | 'modules'
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('home')
@@ -78,6 +81,16 @@ export default function App() {
     )
   }
 
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'home', label: 'Pipeline' },
+    { id: 'matches', label: 'Matches' },
+    { id: 'apply', label: 'Apply' },
+    { id: 'tracker', label: 'Tracker' },
+    { id: 'profile', label: 'Profile' },
+    { id: 'preferences', label: 'Preferences' },
+    { id: 'modules', label: 'Modules' }
+  ]
+
   return (
     <div className="app">
       <header className="topbar">
@@ -96,30 +109,15 @@ export default function App() {
             </span>
           ) : null}
           <nav className="tabs" aria-label="Primary">
-            <button
-              className={`tab ${tab === 'home' ? 'active' : ''}`}
-              onClick={() => setTab('home')}
-            >
-              Pipeline
-            </button>
-            <button
-              className={`tab ${tab === 'profile' ? 'active' : ''}`}
-              onClick={() => setTab('profile')}
-            >
-              Profile
-            </button>
-            <button
-              className={`tab ${tab === 'preferences' ? 'active' : ''}`}
-              onClick={() => setTab('preferences')}
-            >
-              Preferences
-            </button>
-            <button
-              className={`tab ${tab === 'modules' ? 'active' : ''}`}
-              onClick={() => setTab('modules')}
-            >
-              Modules
-            </button>
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                className={`tab ${tab === t.id ? 'active' : ''}`}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
           </nav>
         </div>
       </header>
@@ -127,6 +125,12 @@ export default function App() {
       <main className="content">
         {tab === 'home' ? (
           <PipelinePanel prefs={prefs} />
+        ) : tab === 'matches' ? (
+          <MatchInbox prefs={prefs} />
+        ) : tab === 'apply' ? (
+          <ApplyQueue prefs={prefs} />
+        ) : tab === 'tracker' ? (
+          <TrackerPanel />
         ) : tab === 'profile' ? (
           <ProfilePanel bundle={bundle} />
         ) : tab === 'preferences' ? (

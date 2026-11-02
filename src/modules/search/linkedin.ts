@@ -1,6 +1,7 @@
 /**
  * LinkedIn job search UI via Playwright (no LinkedIn API).
  * Requires a logged-in session for reliable results; falls back to fixture.
+ * Hardened: guest collection selectors, scroll-load, retry waits.
  */
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
@@ -60,7 +61,18 @@ async function scrapeCards(page: Page): Promise<RawCard[]> {
     const seen = new Set<string>()
     const cards = Array.from(
       document.querySelectorAll(
-        'li.jobs-search-results__list-item, div.job-card-container, li.scaffold-layout__list-item, div.base-card, div[data-job-id]'
+        [
+          'li.jobs-search-results__list-item',
+          'div.job-card-container',
+          'li.scaffold-layout__list-item',
+          'div.base-card',
+          'div.base-card--link',
+          'div[data-job-id]',
+          'li.jobs-search-two-pane__job-card-container--viewport-tracking-0',
+          'ul.jobs-search__results-list > li',
+          'div.job-search-card',
+          'li.ember-view.jobs-search-results__list-item'
+        ].join(', ')
       )
     )
 
@@ -69,41 +81,69 @@ async function scrapeCards(page: Page): Promise<RawCard[]> {
       const jobId =
         root.getAttribute('data-job-id') ||
         root.getAttribute('data-occludable-job-id') ||
+        root.getAttribute('data-entity-urn')?.replace(/^.*:/, '') ||
         root.querySelector('[data-job-id]')?.getAttribute('data-job-id') ||
         ''
 
       const titleEl = root.querySelector(
-        'a.job-card-list__title, a.job-card-container__link, a.base-card__full-link, a[href*="/jobs/view/"]'
-      ) as HTMLAnchorElement | null
+        [
+          'a.job-card-list__title',
+          'a.job-card-list__title--link',
+          'a.job-card-container__link',
+          'a.base-card__full-link',
+          'a.base-card--link',
+          'a[href*="/jobs/view/"]',
+          'h3.base-search-card__title a',
+          'h3.base-search-card__title',
+          '.artdeco-entity-lockup__title a'
+        ].join(', ')
+      ) as HTMLAnchorElement | HTMLElement | null
 
       const title =
-        titleEl?.innerText?.trim() ||
-        (root.querySelector('.job-card-list__title, .artdeco-entity-lockup__title') as HTMLElement | null)
+        (titleEl as HTMLElement)?.innerText?.trim() ||
+        titleEl?.textContent?.trim() ||
+        (root.querySelector('.job-card-list__title, .artdeco-entity-lockup__title, .base-search-card__title') as HTMLElement | null)
           ?.innerText?.trim() ||
         ''
 
-      let href = titleEl?.href || ''
+      let href =
+        (titleEl as HTMLAnchorElement)?.href ||
+        (root.querySelector('a[href*="/jobs/view/"]') as HTMLAnchorElement | null)?.href ||
+        ''
       if (!href && jobId) href = `https://www.linkedin.com/jobs/view/${jobId}`
 
       const company =
         (
           root.querySelector(
-            '.job-card-container__primary-description, .artdeco-entity-lockup__subtitle, .base-search-card__subtitle, h4'
+            [
+              '.job-card-container__primary-description',
+              '.artdeco-entity-lockup__subtitle',
+              '.base-search-card__subtitle',
+              'h4.base-search-card__subtitle',
+              'a.hidden-nested-link',
+              'h4'
+            ].join(', ')
           ) as HTMLElement | null
         )?.innerText?.trim() || ''
 
       const location =
         (
           root.querySelector(
-            '.job-card-container__metadata-item, .job-search-card__location, .artdeco-entity-lockup__caption'
+            [
+              '.job-card-container__metadata-item',
+              '.job-search-card__location',
+              '.artdeco-entity-lockup__caption',
+              '.job-card-container__metadata-wrapper li',
+              '.base-search-card__metadata'
+            ].join(', ')
           ) as HTMLElement | null
         )?.innerText?.trim() || ''
 
       const snippet =
         (
-          root.querySelector('.job-card-container__footer-item, .job-search-card__snippet') as
-            | HTMLElement
-            | null
+          root.querySelector(
+            '.job-card-container__footer-item, .job-search-card__snippet, .job-card-list__insight'
+          ) as HTMLElement | null
         )?.innerText?.trim() || ''
 
       const key = jobId || href || title
@@ -115,12 +155,33 @@ async function scrapeCards(page: Page): Promise<RawCard[]> {
   })
 }
 
+async function scrollResults(page: Page, times = 4): Promise<void> {
+  for (let i = 0; i < times; i++) {
+    await page.evaluate(() => {
+      const pane =
+        document.querySelector(
+          '.jobs-search-results-list, .scaffold-layout__list, ul.jobs-search__results-list, .jobs-search__results-list'
+        ) || document.scrollingElement
+      if (pane) pane.scrollBy(0, 900)
+    })
+    await new Promise((r) => setTimeout(r, 700))
+  }
+}
+
 async function pageNeedsLogin(page: Page): Promise<boolean> {
   return page.evaluate(() => {
     const href = location.href
     const text = (document.body?.innerText || '').toLowerCase()
     if (/\/login|\/uas\/login|\/checkpoint\//.test(href)) return true
     if (document.querySelector('input#username, input[name="session_key"]')) return true
+    // Guest results pages are OK — don't treat marketing banners alone as a hard login wall
+    // if job cards are present.
+    const hasCards = Boolean(
+      document.querySelector(
+        'li.jobs-search-results__list-item, div.job-card-container, div.base-card, ul.jobs-search__results-list > li, div[data-job-id]'
+      )
+    )
+    if (hasCards) return false
     if (/sign in to continue|join linkedin|welcome back/.test(text) && /sign in|join now/.test(text)) {
       return true
     }
@@ -153,34 +214,56 @@ export async function searchLinkedIn(
   const max = options.maxResults ?? 20
   const q = encodeURIComponent(options.query)
   const l = encodeURIComponent(options.location)
-  const searchUrl = `https://www.linkedin.com/jobs/search/?keywords=${q}&location=${l}`
+  // Prefer authenticated search; guest collection is a secondary path.
+  const searchUrl = `https://www.linkedin.com/jobs/search/?keywords=${q}&location=${l}&refresh=true`
+  const guestUrl = `https://www.linkedin.com/jobs/search/?keywords=${q}&location=${l}&position=1&pageNum=0`
 
   try {
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
-    await new Promise((r) => setTimeout(r, 1800))
+    await new Promise((r) => setTimeout(r, 1600))
 
     if (await pageNeedsLogin(page)) {
-      const fallback = loadFixture(options.fixturePath)
-      if (fallback.length) {
+      // Try guest/public collection URL once before fixture fallback.
+      try {
+        await page.goto(guestUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 })
+        await new Promise((r) => setTimeout(r, 1500))
+      } catch {
+        /* ignore */
+      }
+      if (await pageNeedsLogin(page)) {
+        const fallback = loadFixture(options.fixturePath)
+        if (fallback.length) {
+          return {
+            jobs: fallback.slice(0, max).map(toListing).filter(Boolean) as JobListing[],
+            usedFixture: true,
+            message:
+              'LinkedIn needs login. Sign in in the automation browser, or using fixture results for this run.',
+            searchUrl
+          }
+        }
         return {
-          jobs: fallback.slice(0, max).map(toListing).filter(Boolean) as JobListing[],
-          usedFixture: true,
-          message:
-            'LinkedIn needs login. Sign in in the automation browser, or using fixture results for this run.',
+          jobs: [],
+          usedFixture: false,
+          message: 'LinkedIn needs a manual login — sign in, then Run search again.',
           searchUrl
         }
       }
-      return {
-        jobs: [],
-        usedFixture: false,
-        message: 'LinkedIn needs a manual login — sign in, then Run search again.',
-        searchUrl
-      }
     }
 
+    await page
+      .waitForSelector(
+        'li.jobs-search-results__list-item, div.job-card-container, div.base-card, ul.jobs-search__results-list > li, div[data-job-id]',
+        { timeout: 12_000 }
+      )
+      .catch(() => null)
+
     let raw = await scrapeCards(page)
+    if (raw.length < Math.min(8, max)) {
+      await scrollResults(page, 5)
+      raw = await scrapeCards(page)
+    }
     if (raw.length === 0) {
-      await new Promise((r) => setTimeout(r, 2000))
+      await new Promise((r) => setTimeout(r, 2200))
       raw = await scrapeCards(page)
     }
 

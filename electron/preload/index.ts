@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { DesktopApi } from '../../src/shared/ipc'
+import type { DesktopApi, TrackerUpdatePatch } from '../../src/shared/ipc'
 import type { AppPreferences } from '../../src/shared/preferences'
 import type { JobListing, MatchResult } from '../../src/shared/types'
 
@@ -26,7 +26,16 @@ const api: DesktopApi = {
   importSampleProfile: () => ipcRenderer.invoke('import:sample'),
   skipExtensionImport: () => ipcRenderer.invoke('import:skip'),
   checkOllama: () => ipcRenderer.invoke('ollama:check'),
-  completeOnboarding: () => ipcRenderer.invoke('onboarding:complete')
+  completeOnboarding: () => ipcRenderer.invoke('onboarding:complete'),
+  listApplications: () => ipcRenderer.invoke('tracker:list'),
+  updateApplication: (key: string, patch: TrackerUpdatePatch) =>
+    ipcRenderer.invoke('tracker:update', key, patch),
+  deleteApplication: (key: string) => ipcRenderer.invoke('tracker:delete', key),
+  exportApplicationsCsv: () => ipcRenderer.invoke('tracker:export-csv'),
+  checkReminders: () => ipcRenderer.invoke('tracker:check-reminders'),
+  getLastJobs: () => ipcRenderer.invoke('pipeline:last-jobs'),
+  getLastMatches: () => ipcRenderer.invoke('pipeline:last-matches'),
+  getLastApplyResults: () => ipcRenderer.invoke('pipeline:last-apply')
 }
 
 contextBridge.exposeInMainWorld('desktopApi', api)

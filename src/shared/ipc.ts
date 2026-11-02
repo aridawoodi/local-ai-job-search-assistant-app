@@ -1,6 +1,7 @@
 import type { AppPreferences } from './preferences'
 import type { StoredProfileBundle } from './profile'
 import type { OllamaStatus } from './ollama'
+import type { ApplicationRow, TrackerStage, TrackerStatus } from './tracker'
 import type {
   ApplyResult,
   BrowserRuntimeStatus,
@@ -25,6 +26,16 @@ export interface SearchUiResult {
   jobs: JobListing[]
   meta: SearchMeta
   history: SearchHistoryEntry[]
+}
+
+export interface TrackerUpdatePatch {
+  stage?: TrackerStage
+  status?: TrackerStatus
+  notes?: string
+  reminderAt?: string
+  title?: string
+  company?: string
+  location?: string
 }
 
 export interface DesktopApi {
@@ -54,6 +65,14 @@ export interface DesktopApi {
   skipExtensionImport: () => Promise<AppPreferences>
   checkOllama: () => Promise<OllamaStatus>
   completeOnboarding: () => Promise<AppPreferences>
+  listApplications: () => Promise<ApplicationRow[]>
+  updateApplication: (key: string, patch: TrackerUpdatePatch) => Promise<ApplicationRow | null>
+  deleteApplication: (key: string) => Promise<ApplicationRow[]>
+  exportApplicationsCsv: () => Promise<{ ok: boolean; path?: string; cancelled?: boolean; message: string }>
+  checkReminders: () => Promise<{ due: ApplicationRow[]; notified: number }>
+  getLastJobs: () => Promise<JobListing[]>
+  getLastMatches: () => Promise<MatchResult[]>
+  getLastApplyResults: () => Promise<ApplyResult[]>
 }
 
 declare global {

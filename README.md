@@ -12,21 +12,17 @@ See [docs/stack-decision.md](docs/stack-decision.md).
 
 | Target | Build |
 |--------|--------|
-| macOS Intel + Apple Silicon | `dmg` `x64` + `arm64` |
+| macOS Intel + Apple Silicon | `dmg` + `zip` **universal** |
 | Windows | `nsis` `x64` |
 
-## Milestone 3 (this branch)
+## Current slice (post-M3)
 
-- **Multi-source search** (no job-board APIs):
-  - **Indeed** — live result cards (fixture fallback)
-  - **Google Jobs** — public `udm=8` scrape (fixture fallback)
-  - **LinkedIn** — job search UI when logged in (fixture fallback)
-  - **Company career sites** — user-configured listing URLs + generic scrape stub
-- Source enable toggles, soft rate limit between sources, in-app **search history**
-- **Apply-fill** ported from extension patterns (Greenhouse / Lever / Ashby / LinkedIn Easy Apply / generic):
-  - **Confirm** (default): queue → user Confirm → autofill
-  - **Unattended**: autofill without per-job click
-  - **Never auto-submits** (no Submit / Apply / Next clicks); practice form at `fixtures/practice-apply-form.html`
+- **Match inbox / Apply queue / Tracker** tabs (extension-style workflow surfaces)
+- **Tracker**: stages (`saved`→`offer`), notes, reminders + desktop reminder notify, CSV export; fill results write rows via extension-compatible `jobKey`
+- **LinkedIn search hardening**: richer selectors, scroll-load, guest path before fixture; still needs login for best results
+- **Company career crawl**: Greenhouse / Lever / Ashby-aware scrapers + generic fallback
+- **Scheduled search** pref (minutes; 0 = off) while the app is open
+- Multi-source search + apply-fill from Milestone 3 (confirm / unattended; never auto-submits)
 
 ### Chrome ↔ Edge profiles
 
@@ -49,16 +45,17 @@ npm run dist:win
 ### Demo flow
 
 1. First launch → import sample/extension profile (or skip).
-2. Preferences → enable sources; set query/location; optional company career URLs.
+2. Preferences → enable sources; set query/location; optional company career URLs / schedule.
 3. Pipeline → **Open browser** → log into LinkedIn (and others) manually if needed.
 4. **Check sessions** → **Run search → match → notify**.
-5. **Apply / fill** → in confirm mode, **Confirm apply** to autofill (Submit stays manual).
+5. **Matches** / **Apply** tabs → queue + confirm fill (Submit stays manual).
+6. **Tracker** → stages, notes, reminders, CSV export.
 
 ### Import a profile
 
 1. First launch → **Import extension profile** (or **Load sample profile** / **Skip**).
 2. Or Preferences → Import from file.
-3. Accepts extension Settings export (`job-apply-profile.json`) and full backups (`kind: job-apply-assistant-backup`).
+3. Accepts extension Settings export (`job-apply-profile.json`) and full backups (`kind: job-apply-assistant-backup`) including `applications`.
 4. Fixtures: `fixtures/sample-profile.json`, `fixtures/sample-backup.json`, `fixtures/*-results.html`, `fixtures/practice-apply-form.html`.
 
 Prefs and profile survive restart under Electron `userData`. Automation cookies live under `userData/browser-profiles/`.
@@ -66,11 +63,11 @@ Prefs and profile survive restart under Electron `userData`. Automation cookies 
 ## Layout
 
 ```
-electron/main/     IPC, prefs/profile stores, Ollama, BrowserController
+electron/main/     IPC, prefs/profile stores, Ollama, BrowserController, schedule/reminders
 electron/preload/  contextBridge API
-src/renderer/      React UI
-src/shared/        Types, prefs, profile schema, IPC contract
-src/modules/       search (Indeed/Google/LinkedIn/company) | match | notify | apply/fill | import
+src/renderer/      React UI (Pipeline, Matches, Apply, Tracker, Profile, Prefs)
+src/shared/        Types, prefs, profile schema, tracker schema, IPC contract
+src/modules/       search | match | notify | apply/fill | tracker | import
 fixtures/          Sample profile + source result HTML + practice apply form
 docs/              Stack decision mirror
 ```

@@ -31,6 +31,10 @@ export interface AppPreferences {
     indeed: boolean
     companySites: boolean
   }
+  /** Minutes between scheduled searches; 0 = off (manual only). */
+  scheduledSearchMinutes: number
+  /** Notify when tracker reminder dates are due. */
+  reminderNotifications: boolean
 }
 
 export const DEFAULT_PREFERENCES: AppPreferences = {
@@ -54,5 +58,7 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
     linkedin: false,
     indeed: true,
     companySites: false
-  }
+  },
+  scheduledSearchMinutes: 0,
+  reminderNotifications: true
 }
