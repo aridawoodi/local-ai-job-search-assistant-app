@@ -107,6 +107,8 @@ export async function applyToJobs(
       actions++
 
       let submitted = false
+      let submitConfirmed = false
+      let submitLabel: string | undefined
       let filledCount = 0
       let needsYouCount = 0
       let fields: ApplyResult['fields'] = []
@@ -128,6 +130,8 @@ export async function applyToJobs(
         formFound = session.formFound
         stepsAdvanced = session.stepsAdvanced
         submitted = session.submitted
+        submitConfirmed = Boolean(session.submitConfirmed)
+        submitLabel = session.submitLabel
         message = session.message
         if (session.stepsAdvanced > 0) actions += session.stepsAdvanced
         if (session.submitted) actions++
@@ -147,6 +151,8 @@ export async function applyToJobs(
           } else {
             const sub = await maybeClickSubmit(ctx.page, prefs)
             submitted = sub.submitted
+            submitConfirmed = Boolean(sub.submitConfirmed)
+            submitLabel = sub.controlLabel
             submitMsg = ` ${sub.message}`
             if (sub.attempted) actions++
           }
@@ -177,6 +183,8 @@ export async function applyToJobs(
         needsYouCount,
         fields,
         submitted,
+        submitConfirmed,
+        submitLabel,
         stepsAdvanced
       })
     } catch (err) {
@@ -255,6 +263,7 @@ export function defaultPracticeFormPath(appPath: string, cwd: string): string | 
 }
 
 export { canAutoSubmit, maybeClickSubmit } from './submit'
+export { detectSubmitConfirmation } from './submit-detect'
 export {
   runMultiStepSession,
   clickNextOrContinue,

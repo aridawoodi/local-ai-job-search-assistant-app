@@ -17,9 +17,11 @@ export default function AiAssistPanel({ prefs }: Props) {
   const [coverOut, setCoverOut] = useState('')
   const [refineIn, setRefineIn] = useState('')
   const [refineOut, setRefineOut] = useState('')
+  const [refineQuestion, setRefineQuestion] = useState('')
   const [coverLen, setCoverLen] = useState<CoverLength>('standard')
   const [refineMode, setRefineMode] = useState<RefineMode>('polish')
   const [flags, setFlags] = useState<string[]>([])
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -44,9 +46,6 @@ export default function AiAssistPanel({ prefs }: Props) {
       setMsg(r.message)
       setTailorOut(r.tailoredText || `${r.summary}\n\nSkills: ${r.skillsLine}`)
       setFlags([...r.blocked, ...r.warnings])
-      if (r.ok && r.summary) {
-        // leave apply-to-profile as explicit user action
-      }
     } catch (err) {
       setMsg(err instanceof Error ? err.message : String(err))
     } finally {
@@ -58,11 +57,8 @@ export default function AiAssistPanel({ prefs }: Props) {
     if (!tailorOut) return
     const summary = tailorOut.split(/\n\nSkills:/i)[0]?.trim() || tailorOut
     const skillsMatch = tailorOut.match(/Skills:\s*([^\n]+)/i)
-    const bundle = await window.desktopApi.applyTailorToProfile(
-      summary,
-      skillsMatch?.[1] || ''
-    )
-    setMsg(`Saved tailored summary/skills to profile (${bundle.profile.skills.length} skills).`)
+    await window.desktopApi.applyTailorToProfile(summary, skillsMatch?.[1] || '')
+    setMsg(`Saved tailored summary/skills to profile.`)
   }
 
   async function runCover() {
@@ -91,11 +87,58 @@ export default function AiAssistPanel({ prefs }: Props) {
   async function runRefine() {
     setBusy(true)
     setFlags([])
+    setCopied(false)
     try {
-      const r = await window.desktopApi.aiRefine(refineIn, refineMode)
+      const r = await window.desktopApi.aiRefine(
+        refineIn,
+        refineMode,
+        refineQuestion.trim() || undefined
+      )
       setMsg(r.message)
       setRefineOut(r.text)
       setFlags([...r.blocked, ...r.warnings])
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function copyRefined() {
+    if (!refineOut) return
+    try {
+      await navigator.clipboard.writeText(refineOut)
+      setCopied(true)
+      setMsg('Refined answer copied to clipboard — paste into the application form.')
+    } catch {
+      setMsg('Could not copy — select the result text manually.')
+    }
+  }
+
+  function useRefinedAsInput() {
+    if (!refineOut) return
+    setRefineIn(refineOut)
+    setMsg('Moved refined text into the editor for another pass.')
+  }
+
+  async function saveToAnswerBank() {
+    if (!refineOut.trim()) return
+    setBusy(true)
+    try {
+      const result = await window.desktopApi.upsertAnswerBank([
+        {
+          q: refineQuestion.trim() || 'Refined application answer',
+          a: refineOut.trim(),
+          source: `refine:${refineMode}`
+        }
+      ])
+      setMsg(
+        result.added > 0
+          ? `Saved to answer bank (+${result.added}, ${result.bank.length} total).`
+          : result.updated > 0
+            ? `Merged into answer bank (${result.updated} updated, ${result.bank.length} total).`
+            : `Answer bank unchanged (${result.bank.length} entries).`
+      )
     } catch (err) {
       setMsg(err instanceof Error ? err.message : String(err))
     } finally {
@@ -172,9 +215,31 @@ export default function AiAssistPanel({ prefs }: Props) {
         </section>
       </div>
 
-      <section style={{ marginTop: '1.25rem' }}>
+      <section className="refine-panel" style={{ marginTop: '1.25rem' }}>
         <h3>Refine answer</h3>
-        <div className="actions" style={{ marginTop: 0 }}>
+        <p className="hint" style={{ marginTop: 0 }}>
+          App-side refine (preferred over fragile in-page injection). Paste the question and draft,
+          polish locally, then copy back into the form.
+        </p>
+        <div className="field">
+          <label htmlFor="refineQ">Application question (optional)</label>
+          <input
+            id="refineQ"
+            type="text"
+            value={refineQuestion}
+            onChange={(e) => setRefineQuestion(e.target.value)}
+            placeholder="e.g. Why do you want this role?"
+            style={{
+              width: '100%',
+              padding: '0.5rem 0.7rem',
+              borderRadius: 10,
+              border: '1px solid var(--border)',
+              background: 'var(--bg)',
+              color: 'var(--text)'
+            }}
+          />
+        </div>
+        <div className="actions" style={{ marginTop: '0.65rem' }}>
           <select
             value={refineMode}
             onChange={(e) => setRefineMode(e.target.value as RefineMode)}
@@ -192,20 +257,46 @@ export default function AiAssistPanel({ prefs }: Props) {
           >
             Refine
           </button>
+          <button
+            className="btn"
+            disabled={busy || !refineOut}
+            onClick={() => void copyRefined()}
+          >
+            {copied ? 'Copied' : 'Copy result'}
+          </button>
+          <button className="btn" disabled={busy || !refineOut} onClick={useRefinedAsInput}>
+            Use as next input
+          </button>
+          <button
+            className="btn"
+            disabled={busy || !refineOut.trim()}
+            onClick={() => void saveToAnswerBank()}
+          >
+            Save to answer bank
+          </button>
         </div>
-        <textarea
-          className="ai-out"
-          rows={5}
-          placeholder="Paste a long-form application answer…"
-          value={refineIn}
-          onChange={(e) => setRefineIn(e.target.value)}
-        />
-        {refineOut ? (
-          <>
+        <div className="refine-split">
+          <div>
+            <p className="hint">Draft</p>
+            <textarea
+              className="ai-out"
+              rows={7}
+              placeholder="Paste a long-form application answer…"
+              value={refineIn}
+              onChange={(e) => setRefineIn(e.target.value)}
+            />
+          </div>
+          <div>
             <p className="hint">Result</p>
-            <textarea className="ai-out" rows={5} value={refineOut} readOnly />
-          </>
-        ) : null}
+            <textarea
+              className="ai-out"
+              rows={7}
+              value={refineOut}
+              readOnly
+              placeholder="Refined text appears here…"
+            />
+          </div>
+        </div>
       </section>
 
       {msg ? <p className="hint" style={{ marginTop: '0.75rem' }}>{msg}</p> : null}

@@ -5,12 +5,15 @@
 
 import type { Page } from 'playwright'
 import type { AppPreferences } from '../../shared/preferences'
+import { detectSubmitConfirmation } from './submit-detect'
 
 export interface SubmitClickResult {
   attempted: boolean
   submitted: boolean
   message: string
   controlLabel?: string
+  submitConfirmed?: boolean
+  confirmDetail?: string
 }
 
 /**
@@ -76,11 +79,16 @@ export async function maybeClickSubmit(
   })
 
   if (clicked.ok) {
-    await new Promise((r) => setTimeout(r, 600))
+    await new Promise((r) => setTimeout(r, 900))
+    const confirm = await detectSubmitConfirmation(page)
     return {
       attempted: true,
       submitted: true,
-      message: `Auto-submit clicked “${clicked.label}” (unattended + allowAutoSubmit).`,
+      submitConfirmed: confirm.confirmed,
+      confirmDetail: confirm.detail,
+      message: confirm.confirmed
+        ? `Auto-submit clicked “${clicked.label}”; confirmation seen (${confirm.detail.slice(0, 80)}).`
+        : `Auto-submit clicked “${clicked.label}” (unattended + allowAutoSubmit); confirmation UI not detected yet.`,
       controlLabel: clicked.label
     }
   }

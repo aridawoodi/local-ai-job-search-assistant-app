@@ -116,6 +116,7 @@ export async function fillApplicationPage(
       over18: string
       currentEmployer: string
       currentTitle: string
+      currentStartDate: string
       yearsExperience: string
       availability: string
       noticePeriod: string
@@ -123,8 +124,10 @@ export async function fillApplicationPage(
       willingToRelocate: string
       howDidYouHear: string
       signature: string
+      skills: string[]
       education: { school?: string; degree?: string; field?: string }
       eeo: Record<string, string>
+      workHistory: { company?: string; title?: string; start?: string; end?: string }[]
     }
 
     const norm = (s: string) =>
@@ -259,8 +262,26 @@ export async function fillApplicationPage(
       { key: 'yearsExperience', re: /\byears of (relevant |professional |work )?experience\b/, value: p.yearsExperience || '' },
       {
         key: 'availability',
-        re: /\b(when can you start|start date|availability|notice period)\b/,
+        re: /\b(when can you start|start date|availability|notice period|available (to start)?)\b/,
         value: p.availability || p.noticePeriod || ''
+      },
+      {
+        key: 'startDate',
+        re: /\b(from date|begin date|available (from|on)|start date)\b/,
+        value: p.currentStartDate || p.workHistory?.[0]?.start || p.availability || '',
+        short: true
+      },
+      {
+        key: 'jobTitle',
+        re: /\b(job title|position title|^title$)\b/,
+        value: p.currentTitle || p.workHistory?.[0]?.title || '',
+        short: true
+      },
+      {
+        key: 'company',
+        re: /^(company|employer|organization)\b/,
+        value: p.currentEmployer || p.workHistory?.[0]?.company || '',
+        short: true
       },
       { key: 'relocate', re: /\brelocat/, value: p.willingToRelocate || '' },
       { key: 'hearAbout', re: /\b(how did you (hear|find|learn)|referral source)\b/, value: p.howDidYouHear || '' },
@@ -270,6 +291,37 @@ export async function fillApplicationPage(
       { key: 'disability', re: /\bdisabilit/, value: p.eeo?.disability || '', eeo: true },
       { key: 'ethnicity', re: /\b(race|ethnicity|ethnic|racial)\b/, value: p.eeo?.ethnicity || '', eeo: true }
     ]
+
+    const skillSet = (p.skills || []).map((s) => norm(s)).filter(Boolean)
+
+    /** ISO yyyy-mm-dd when possible; leave free-text for non-date inputs. */
+    function toDateValue(raw: string): string {
+      const s = String(raw || '').trim()
+      if (!s) return ''
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+      const mdy = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/)
+      if (mdy) {
+        const mm = mdy[1].padStart(2, '0')
+        const dd = mdy[2].padStart(2, '0')
+        return `${mdy[3]}-${mm}-${dd}`
+      }
+      const parsed = Date.parse(s)
+      if (!Number.isNaN(parsed)) {
+        const d = new Date(parsed)
+        const mm = String(d.getMonth() + 1).padStart(2, '0')
+        const dd = String(d.getDate()).padStart(2, '0')
+        return `${d.getFullYear()}-${mm}-${dd}`
+      }
+      // Relative phrases → ~2 weeks out (reliable default for "immediately"/notice).
+      if (/immediate|asap|now|two weeks?|2 weeks?|notice/i.test(s)) {
+        const d = new Date()
+        d.setDate(d.getDate() + 14)
+        const mm = String(d.getMonth() + 1).padStart(2, '0')
+        const dd = String(d.getDate()).padStart(2, '0')
+        return `${d.getFullYear()}-${mm}-${dd}`
+      }
+      return ''
+    }
 
     function matchRule(label: string, name: string, id: string, autocomplete: string): Rule | null {
       const L = norm(label)
@@ -412,14 +464,56 @@ export async function fillApplicationPage(
         continue
       }
 
-      if (type === 'checkbox' && !rule) {
-        reports.push({
-          label: label || 'checkbox',
-          status: 'skipped',
-          detail: 'Consent/terms checkbox — review yourself.'
-        })
-        skippedCount++
-        continue
+      // Workday-style multiselect: skill checkboxes in a group / chip list.
+      if (type === 'checkbox') {
+        const autoId = (input.getAttribute('data-automation-id') || '').toLowerCase()
+        const inMulti =
+          /multiselect|skills?/i.test(autoId + ' ' + label + ' ' + (input.name || '')) ||
+          Boolean(el.closest('[data-automation-id*="Multiselect" i], [data-automation-id*="skills" i], [role="group"][aria-label*="skill" i], fieldset'))
+        if (inMulti && skillSet.length) {
+          const optNorm = norm(labelFor(el) + ' ' + (input.value || ''))
+          const hit = skillSet.some(
+            (sk) => optNorm === sk || optNorm.includes(sk) || sk.includes(optNorm.split(' ').pop() || sk)
+          )
+          if (hit && !input.checked) {
+            input.click()
+            reports.push({
+              label: label || input.value || 'skill',
+              key: 'skills',
+              status: 'filled',
+              detail: `Multiselect matched skill (${input.value || label})`
+            })
+            filledCount++
+            continue
+          }
+          if (hit && input.checked) {
+            reports.push({
+              label: label || input.value || 'skill',
+              key: 'skills',
+              status: 'filled',
+              detail: 'Already checked'
+            })
+            filledCount++
+            continue
+          }
+          reports.push({
+            label: label || input.value || 'skill',
+            key: 'skills',
+            status: 'skipped',
+            detail: 'Skill not in profile — left unchecked.'
+          })
+          skippedCount++
+          continue
+        }
+        if (!rule) {
+          reports.push({
+            label: label || 'checkbox',
+            status: 'skipped',
+            detail: 'Consent/terms checkbox — review yourself.'
+          })
+          skippedCount++
+          continue
+        }
       }
 
       if (!rule) {
@@ -495,6 +589,21 @@ export async function fillApplicationPage(
             reports.push({ label, key: rule.key, status: 'needs_you', detail: 'No matching radio.' })
             needsYouCount++
           }
+        } else if (type === 'date' || /date/i.test(input.getAttribute('data-automation-id') || '')) {
+          const iso = toDateValue(rule.value) || toDateValue(p.availability) || toDateValue(p.currentStartDate)
+          if (!iso) {
+            reports.push({
+              label,
+              key: rule.key,
+              status: 'needs_you',
+              detail: `Could not parse date from "${rule.value || '(empty)'}" — set availability as YYYY-MM-DD.`
+            })
+            needsYouCount++
+          } else {
+            typeInto(el as HTMLInputElement, iso)
+            reports.push({ label, key: rule.key, status: 'filled', detail: iso })
+            filledCount++
+          }
         } else {
           typeInto(el as HTMLInputElement | HTMLTextAreaElement, String(rule.value))
           reports.push({ label, key: rule.key, status: 'filled', detail: String(rule.value).slice(0, 80) })
@@ -509,6 +618,22 @@ export async function fillApplicationPage(
         })
         needsYouCount++
       }
+    }
+
+    // Repeatable Workday sections: fill first row only; never auto-click "Add Another".
+    const addAnother = Array.from(
+      formRoot.querySelectorAll(
+        'button[data-automation-id="addAnother"], button[data-automation-id*="add" i], button'
+      )
+    ).filter((b) => isVisible(b) && /add (another|more|entry|experience|education)/i.test(textOf(b)))
+    for (const btn of addAnother.slice(0, 3)) {
+      reports.push({
+        label: textOf(btn) || 'Add Another',
+        key: 'repeat',
+        status: 'skipped',
+        detail: 'Repeat section: first row filled when matched; extra rows left for you.'
+      })
+      skippedCount++
     }
 
     // Refuse to click any submitty buttons (safety audit).
@@ -575,6 +700,7 @@ function serializeProfile(profile: UserProfile) {
     over18: profile.over18,
     currentEmployer: profile.currentEmployer,
     currentTitle: profile.currentTitle,
+    currentStartDate: profile.currentStartDate,
     yearsExperience: profile.yearsExperience,
     availability: profile.availability,
     noticePeriod: profile.noticePeriod,
@@ -582,7 +708,14 @@ function serializeProfile(profile: UserProfile) {
     willingToRelocate: profile.willingToRelocate,
     howDidYouHear: profile.howDidYouHear,
     signature: profile.signature,
+    skills: profile.skills || [],
     education: profile.education || {},
-    eeo: profile.eeo || {}
+    eeo: profile.eeo || {},
+    workHistory: (profile.workHistory || []).slice(0, 3).map((w) => ({
+      company: w.company,
+      title: w.title,
+      start: w.start,
+      end: w.end
+    }))
   }
 }

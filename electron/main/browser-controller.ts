@@ -176,6 +176,7 @@ export class BrowserController {
           source: 'indeed',
           ready: false,
           needsLogin: false,
+          pauseKind: 'captcha',
           message: 'Indeed showed a captcha / bot check — complete it in the browser window.',
           url: snapshot.href
         }
@@ -185,6 +186,7 @@ export class BrowserController {
           source: 'indeed',
           ready: true,
           needsLogin: false,
+          pauseKind: null,
           message: 'Indeed session looks signed in (cookies reusable).',
           url: snapshot.href
         }
@@ -194,6 +196,7 @@ export class BrowserController {
         source: 'indeed',
         ready: true,
         needsLogin: snapshot.loginPrompt,
+        pauseKind: snapshot.loginPrompt ? 'login' : null,
         message: snapshot.loginPrompt
           ? 'Indeed reachable; optional sign-in recommended for richer results. Search works without login.'
           : 'Indeed reachable. Public search available without login.',
@@ -204,6 +207,7 @@ export class BrowserController {
         source: 'indeed',
         ready: false,
         needsLogin: false,
+        pauseKind: 'blocked',
         message: err instanceof Error ? err.message : String(err),
         url
       }
@@ -231,6 +235,7 @@ export class BrowserController {
           source: 'linkedin',
           ready: true,
           needsLogin: false,
+          pauseKind: null,
           message: 'LinkedIn session ready (logged in).',
           url: snapshot.href
         }
@@ -239,6 +244,7 @@ export class BrowserController {
         source: 'linkedin',
         ready: false,
         needsLogin: true,
+        pauseKind: 'login',
         message:
           'LinkedIn needs a manual login in the automation browser. Pause here, sign in, then Check sessions again.',
         url: snapshot.href
@@ -248,6 +254,7 @@ export class BrowserController {
         source: 'linkedin',
         ready: false,
         needsLogin: true,
+        pauseKind: 'login',
         message: err instanceof Error ? err.message : String(err),
         url
       }
@@ -271,6 +278,7 @@ export class BrowserController {
           source: 'google',
           ready: false,
           needsLogin: false,
+          pauseKind: 'captcha',
           message: 'Google Jobs showed captcha / unusual traffic — complete it in the browser.',
           url: snapshot.href
         }
@@ -279,6 +287,7 @@ export class BrowserController {
         source: 'google',
         ready: true,
         needsLogin: false,
+        pauseKind: null,
         message: 'Google Jobs reachable (public search; login optional).',
         url: snapshot.href
       }
@@ -287,6 +296,7 @@ export class BrowserController {
         source: 'google',
         ready: false,
         needsLogin: false,
+        pauseKind: 'blocked',
         message: err instanceof Error ? err.message : String(err),
         url
       }

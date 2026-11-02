@@ -202,7 +202,7 @@ export function dueReminders(
   )
 }
 
-/** Record fill/apply outcomes into the tracker. */
+/** Record fill/apply outcomes into the tracker (including Easy Apply submit). */
 export function recordApplyResults(
   applications: unknown[],
   jobs: JobListing[],
@@ -212,22 +212,46 @@ export function recordApplyResults(
   let list = parseApplications(applications)
   let written = 0
   for (const result of results) {
+    const isSubmit = result.submitted || result.status === 'submitted'
     if (
       result.status !== 'filled' &&
       result.status !== 'needs_you' &&
-      result.status !== 'failed'
+      result.status !== 'failed' &&
+      !isSubmit
     ) {
       continue
     }
     const job = jobs.find((j) => j.id === result.jobId)
     const match = matches?.find((m) => m.jobId === result.jobId)
+    const existing = list.find(
+      (a) =>
+        a.key === result.jobId ||
+        (result.url && a.url && jobKey(a.url) === jobKey(result.url)) ||
+        (job?.url && a.url && jobKey(a.url) === jobKey(job.url))
+    )
+    const submitNote = isSubmit
+      ? [
+          result.submitConfirmed ? 'Easy Apply / submit confirmation detected.' : 'Submitted (confirmation UI not seen).',
+          result.submitLabel ? `Control: ${result.submitLabel}` : '',
+          result.adapter ? `via ${result.adapter}` : ''
+        ]
+          .filter(Boolean)
+          .join(' ')
+      : ''
     const upserted = upsertApplication(list, {
       job,
       match,
       apply: result,
       url: result.url || job?.url,
-      status: result.status === 'failed' ? 'Error - not sent' : 'Filled',
-      stage: 'saved'
+      status: result.status === 'failed' ? 'Error - not sent' : isSubmit ? 'Submitted' : 'Filled',
+      stage: isSubmit ? 'applied' : 'saved',
+      notes:
+        submitNote && !existing?.notes
+          ? submitNote
+          : submitNote && existing?.notes && !existing.notes.includes('confirmation')
+            ? `${existing.notes}\n${submitNote}`.slice(0, 500)
+            : undefined,
+      site: result.adapter
     })
     list = upserted.applications
     written++
