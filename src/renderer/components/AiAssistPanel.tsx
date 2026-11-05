@@ -6,11 +6,12 @@ import type { RefineMode } from '../../modules/ai/refine'
 
 interface Props {
   prefs: AppPreferences
+  initialJobId?: string
 }
 
-export default function AiAssistPanel({ prefs }: Props) {
+export default function AiAssistPanel({ prefs, initialJobId }: Props) {
   const [jobs, setJobs] = useState<JobListing[]>([])
-  const [jobId, setJobId] = useState('')
+  const [jobId, setJobId] = useState(initialJobId || '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [tailorOut, setTailorOut] = useState('')
@@ -27,9 +28,13 @@ export default function AiAssistPanel({ prefs }: Props) {
     void (async () => {
       const j = await window.desktopApi.getLastJobs()
       setJobs(j)
-      if (j[0] && !jobId) setJobId(j[0].id)
+      if (initialJobId && j.some((x) => x.id === initialJobId)) {
+        setJobId(initialJobId)
+      } else if (j[0] && !jobId) {
+        setJobId(j[0].id)
+      }
     })()
-  }, [])
+  }, [initialJobId])
 
   const selected = jobs.find((j) => j.id === jobId)
 
