@@ -32,7 +32,12 @@ import {
   updateApplication
 } from '../../src/modules/tracker'
 import { draftCoverLetter, refineAnswer, tailorResume } from '../../src/modules/ai'
-import { importResumeFromPath } from '../../src/modules/resume'
+import {
+  commitResumeImport,
+  previewResumeFromPath,
+  type ResumeImportPatch,
+  type ResumeReviewKey
+} from '../../src/modules/resume'
 import { mergeIntoBank } from '../../src/shared/answer-bank'
 import {
   emptyPause,
@@ -137,7 +142,6 @@ async function importFromFilePath(filePath: string) {
       loadPreferences().ollamaUrl
     updatePreferences({
       extensionImportStatus: 'imported',
-      onboardingComplete: true,
       ollamaUrl
     })
   }
@@ -680,8 +684,7 @@ function registerIpc(): void {
   ipcMain.handle('import:skip', () => {
     skipExtensionImportMessage()
     return updatePreferences({
-      extensionImportStatus: 'skipped',
-      onboardingComplete: true
+      extensionImportStatus: 'skipped'
     })
   })
 
@@ -707,18 +710,73 @@ function registerIpc(): void {
     if (canceled || !filePaths[0]) {
       return { ok: false, cancelled: true, message: 'Resume import cancelled.' }
     }
-    const bundle = loadProfileBundle()
-    const result = await importResumeFromPath(filePaths[0], bundle.profile)
-    if (result.ok && result.profile) {
-      saveProfileBundle({
-        ...bundle,
-        profile: result.profile,
-        resume: result.parsed
-          ? { name: result.parsed.name, kind: result.parsed.kind, importedAt: new Date().toISOString() }
-          : bundle.resume
-      })
+    return previewResumeFromPath(filePaths[0])
+  })
+
+  ipcMain.handle(
+    'resume:commit',
+    async (
+      _e,
+      payload: {
+        patch: ResumeImportPatch
+        resumeText: string
+        selected: ResumeReviewKey[]
+        parsed?: { name: string; kind: 'pdf' | 'docx' }
+      }
+    ) => {
+      const bundle = loadProfileBundle()
+      const result = commitResumeImport(
+        bundle.profile,
+        payload.patch,
+        payload.resumeText || '',
+        payload.selected
+      )
+      if (result.ok && result.profile) {
+        saveProfileBundle({
+          ...bundle,
+          profile: result.profile,
+          resume: payload.parsed
+            ? {
+                name: payload.parsed.name,
+                kind: payload.parsed.kind,
+                importedAt: new Date().toISOString()
+              }
+            : bundle.resume
+        })
+      }
+      return result
     }
-    return result
+  )
+
+  ipcMain.handle('practice:open', async () => {
+    const candidates = [
+      join(app.getAppPath(), 'fixtures', 'practice-apply-form.html'),
+      join(__dirname, '../../fixtures/practice-apply-form.html'),
+      join(process.cwd(), 'fixtures', 'practice-apply-form.html')
+    ]
+    const path = candidates.find((p) => existsSync(p))
+    if (!path) {
+      return { ok: false, message: 'Practice fixture not found.' }
+    }
+    const url = `file://${path}`
+    try {
+      const prefs = loadPreferences()
+      const page = await browserController.getPage(app.getPath('userData'), prefs.browser)
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+      return {
+        ok: true,
+        message:
+          'Opened practice form in the automation browser. Use Apply → Fill, or refine answers on Resume.'
+      }
+    } catch (err) {
+      await shell.openExternal(url)
+      return {
+        ok: true,
+        message: `Opened practice form in your default browser (${
+          err instanceof Error ? err.message : 'automation browser unavailable'
+        }).`
+      }
+    }
   })
 
   ipcMain.handle('answerbank:list', () => loadProfileBundle().answerBank || [])

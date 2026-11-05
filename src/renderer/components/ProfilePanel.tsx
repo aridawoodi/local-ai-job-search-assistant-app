@@ -20,6 +20,26 @@ import {
   splitLines,
   splitList
 } from '../../shared/profile-helpers'
+import {
+  RESUME_REVIEW_DEFAULTS,
+  type ResumeReviewKey
+} from '../../shared/resume-review'
+
+/** Subset of resume import patch used by the review UI (avoids bundling Node parsers). */
+type ReviewPatch = {
+  firstName?: string
+  lastName?: string
+  email?: string
+  phone?: string
+  summary?: string
+  skills?: string[]
+  workHistory?: unknown[]
+  education?: unknown[]
+  projects?: unknown[]
+  certifications?: string[]
+  languages?: string[]
+  dropped?: string[]
+}
 
 interface Props {
   bundle: StoredProfileBundle
@@ -146,6 +166,12 @@ export default function ProfilePanel({ bundle, onReload }: Props) {
   const [skillsText, setSkillsText] = useState((bundle.profile.skills || []).join(', '))
   const [certsText, setCertsText] = useState((bundle.profile.certifications || []).join('\n'))
   const [langsText, setLangsText] = useState((bundle.profile.languages || []).join(', '))
+  const [review, setReview] = useState<{
+    patch: ReviewPatch
+    resumeText: string
+    parsed: { name: string; kind: 'pdf' | 'docx' }
+    selected: ResumeReviewKey[]
+  } | null>(null)
 
   useEffect(() => {
     setDraft(cloneProfile(bundle.profile))
@@ -203,7 +229,38 @@ export default function ProfilePanel({ bundle, onReload }: Props) {
         setMsg('Cancelled.')
         return
       }
+      if (!r.ok || !r.patch || !r.parsed) {
+        setMsg(r.message)
+        return
+      }
+      setReview({
+        patch: r.patch,
+        resumeText: r.parsed.text,
+        parsed: { name: r.parsed.name, kind: r.parsed.kind },
+        selected: [...RESUME_REVIEW_DEFAULTS]
+      })
       setMsg(r.message)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onCommitResumeReview() {
+    if (!review) return
+    setBusy(true)
+    try {
+      const r = await window.desktopApi.commitResumeImport({
+        patch: review.patch as Parameters<
+          typeof window.desktopApi.commitResumeImport
+        >[0]['patch'],
+        resumeText: review.resumeText,
+        selected: review.selected,
+        parsed: review.parsed
+      })
+      setMsg(r.message)
+      setReview(null)
       setDirty(false)
       await onReload?.()
     } catch (err) {
@@ -211,6 +268,17 @@ export default function ProfilePanel({ bundle, onReload }: Props) {
     } finally {
       setBusy(false)
     }
+  }
+
+  function toggleReviewKey(key: ResumeReviewKey) {
+    setReview((prev) => {
+      if (!prev) return prev
+      const has = prev.selected.includes(key)
+      return {
+        ...prev,
+        selected: has ? prev.selected.filter((k) => k !== key) : [...prev.selected, key]
+      }
+    })
   }
 
   async function onAddAnswer() {
@@ -298,6 +366,61 @@ export default function ProfilePanel({ bundle, onReload }: Props) {
         </div>
       </div>
       {msg ? <p className="hint">{msg}</p> : null}
+
+      {review ? (
+        <section className="profile-section resume-review" id="resume-review">
+          <h3>Resume import review</h3>
+          <p className="hint">
+            Parsed <strong>{review.parsed.name}</strong> ({review.parsed.kind}). Choose what to
+            apply — same idea as the extension importer. EEO / work auth are never imported.
+            Rules-only extract (optional local-AI re-read can refine later).
+          </p>
+          <div className="review-grid">
+            {(
+              [
+                ['identity', 'Name, email, phone, years'],
+                ['links', 'LinkedIn / GitHub / portfolio'],
+                ['location', 'Location'],
+                ['summary', 'Summary'],
+                ['skills', `Skills (${review.patch.skills?.length || 0})`],
+                ['workHistory', `Work history (${review.patch.workHistory?.length || 0})`],
+                ['education', `Education (${review.patch.education?.length || 0})`],
+                ['projects', `Projects (${review.patch.projects?.length || 0})`],
+                ['certifications', `Certifications (${review.patch.certifications?.length || 0})`],
+                ['languages', `Languages (${review.patch.languages?.length || 0})`],
+                ['resumeText', 'Full resume text']
+              ] as Array<[ResumeReviewKey, string]>
+            ).map(([key, label]) => (
+              <label key={key} className="check">
+                <input
+                  type="checkbox"
+                  checked={review.selected.includes(key)}
+                  onChange={() => toggleReviewKey(key)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          {review.patch.summary ? (
+            <p className="hint" style={{ marginTop: '0.75rem' }}>
+              Summary preview: {review.patch.summary.slice(0, 220)}
+              {review.patch.summary.length > 220 ? '…' : ''}
+            </p>
+          ) : null}
+          <div className="actions" style={{ marginTop: '0.85rem' }}>
+            <button
+              className="btn primary"
+              disabled={busy || !review.selected.length}
+              onClick={() => void onCommitResumeReview()}
+            >
+              Apply selected to profile
+            </button>
+            <button className="btn" disabled={busy} onClick={() => setReview(null)}>
+              Cancel
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <nav className="section-nav" aria-label="Profile sections">
         {PROFILE_NAV.map((n) => (

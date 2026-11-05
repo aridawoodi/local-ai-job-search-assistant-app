@@ -98,6 +98,13 @@ export interface DesktopApi {
   getLastMatches: () => Promise<MatchResult[]>
   getLastApplyResults: () => Promise<ApplyResult[]>
   importResume: () => Promise<ResumeImportResult & { cancelled?: boolean }>
+  commitResumeImport: (payload: {
+    patch: import('../modules/resume/import').ResumeImportPatch
+    resumeText: string
+    selected: import('./resume-review').ResumeReviewKey[]
+    parsed?: { name: string; kind: 'pdf' | 'docx' }
+  }) => Promise<ResumeImportResult>
+  openPracticeTour: () => Promise<{ ok: boolean; message: string }>
   listAnswerBank: () => Promise<AnswerBankEntry[]>
   upsertAnswerBank: (entries: AnswerBankEntry[]) => Promise<MergeBankResult & { bank: AnswerBankEntry[] }>
   deleteAnswerBank: (index: number) => Promise<AnswerBankEntry[]>

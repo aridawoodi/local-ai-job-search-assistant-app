@@ -87,8 +87,8 @@ export default function TrackerPanel() {
     <div className="panel wide">
       <h2>Tracker</h2>
       <p className="lede">
-        Extension-compatible application stages, notes, reminders, and CSV export. Fills from Apply
-        queue write rows automatically.
+        Same stages as extension Options → Tracker and the in-page Tracker tab: notes, reminders, CSV.
+        Apply → Fill writes rows automatically.
       </p>
 
       <div className="actions">

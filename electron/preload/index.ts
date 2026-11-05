@@ -47,6 +47,13 @@ const api: DesktopApi = {
   getLastMatches: () => ipcRenderer.invoke('pipeline:last-matches'),
   getLastApplyResults: () => ipcRenderer.invoke('pipeline:last-apply'),
   importResume: () => ipcRenderer.invoke('resume:import'),
+  commitResumeImport: (payload: {
+    patch: import('../../src/modules/resume').ResumeImportPatch
+    resumeText: string
+    selected: import('../../src/modules/resume').ResumeReviewKey[]
+    parsed?: { name: string; kind: 'pdf' | 'docx' }
+  }) => ipcRenderer.invoke('resume:commit', payload),
+  openPracticeTour: () => ipcRenderer.invoke('practice:open'),
   listAnswerBank: () => ipcRenderer.invoke('answerbank:list'),
   upsertAnswerBank: (entries: AnswerBankEntry[]) =>
     ipcRenderer.invoke('answerbank:upsert', entries),
