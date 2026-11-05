@@ -76,6 +76,82 @@ export async function clickNextOrContinue(page: Page): Promise<{
 }
 
 /**
+ * On a job posting page, open the application form the way a user would:
+ * Easy Apply modal, or a visible Apply / Apply now control (not Submit).
+ */
+export async function openApplyEntry(page: Page): Promise<{
+  opened: boolean
+  message: string
+}> {
+  const url = page.url()
+  if (/linkedin\.com/i.test(url)) {
+    return ensureEasyApplyModal(page)
+  }
+
+  const result = await page.evaluate(() => {
+    const textOf = (el: Element | null) =>
+      el
+        ? ((el as HTMLElement).innerText ||
+            (el as HTMLInputElement).value ||
+            el.textContent ||
+            '')
+            .replace(/\s+/g, ' ')
+            .trim()
+        : ''
+    const visible = (el: Element) => {
+      const r = (el as HTMLElement).getClientRects?.()
+      return !!(r && r.length)
+    }
+
+    // Already on / inside an application form?
+    const inputs = Array.from(
+      document.querySelectorAll('input, textarea, select, [contenteditable="true"]')
+    ).filter((el) => visible(el) && !(el as HTMLInputElement).disabled)
+    const formish =
+      inputs.length >= 2 ||
+      Boolean(
+        document.querySelector(
+          'form[action*="apply"], [data-test="application-form"], .application-form, #application-form'
+        )
+      )
+    if (formish) return { opened: true, clicked: false, label: '' }
+
+    const APPLY =
+      /^(apply( now)?|apply for this job|start application|quick apply|easy apply)$/i
+    const SKIP =
+      /\b(submit( application)?|send application|finish|complete application|next|continue|sign in|log in|save)\b/i
+
+    const candidates = Array.from(
+      document.querySelectorAll(
+        'a, button, [role="button"], input[type="button"], input[type="submit"]'
+      )
+    ).filter((el) => visible(el))
+
+    for (const el of candidates) {
+      const label = textOf(el)
+      if (!label || label.length > 48) continue
+      if (SKIP.test(label) && !APPLY.test(label)) continue
+      if (!APPLY.test(label) && !/^apply\b/i.test(label)) continue
+      ;(el as HTMLElement).click()
+      return { opened: false, clicked: true, label }
+    }
+    return { opened: false, clicked: false, label: '' }
+  })
+
+  if (result.opened) {
+    return { opened: true, message: 'Application form already on page.' }
+  }
+  if (result.clicked) {
+    await new Promise((r) => setTimeout(r, 900))
+    return {
+      opened: true,
+      message: `Opened apply entry (“${result.label}”).`
+    }
+  }
+  return { opened: false, message: 'No Apply button found — filling current page.' }
+}
+
+/**
  * LinkedIn Easy Apply: open the modal if a visible Easy Apply button exists.
  */
 export async function ensureEasyApplyModal(page: Page): Promise<{

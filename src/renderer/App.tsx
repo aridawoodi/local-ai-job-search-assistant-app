@@ -196,9 +196,11 @@ export default function App() {
               setResumeJobId(jobId)
               setTab('ai')
             }}
-            onFillQueued={(jobId) => {
-              setApplyFocusJobId(jobId)
+            onApplied={(jobId) => {
+              // Clear then set so Apply chat re-seeds even when re-applying the same job.
+              setApplyFocusJobId(undefined)
               setTab('apply')
+              queueMicrotask(() => setApplyFocusJobId(jobId))
             }}
           />
         ) : tab === 'apply' ? (

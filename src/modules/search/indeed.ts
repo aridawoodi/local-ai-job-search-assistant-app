@@ -48,6 +48,7 @@ function toListing(card: RawCard): JobListing | null {
   if (!title) return null
   let url = card.url || ''
   if (url.startsWith('/')) url = `https://www.indeed.com${url}`
+  if (!url && card.jobKey) url = `https://www.indeed.com/viewjob?jk=${card.jobKey}`
   if (!url) return null
   return {
     id: indeedJobId(url, card.jobKey),

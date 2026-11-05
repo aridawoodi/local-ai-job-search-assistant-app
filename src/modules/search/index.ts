@@ -2,10 +2,21 @@ import type { AppPreferences } from '../../shared/preferences'
 import type { JobListing, JobSource, SearchHistoryEntry, SourceSearchMeta } from '../../shared/types'
 import type { UserProfile } from '../../shared/profile'
 import type { Page } from 'playwright'
+import { withNormalizedJobUrl } from '../../shared/job-urls'
 import { defaultFixturePath, searchIndeed } from './indeed'
 import { defaultLinkedInFixturePath, searchLinkedIn } from './linkedin'
 import { defaultGoogleFixturePath, searchGoogleJobs } from './google'
 import { defaultCompanyFixturePath, searchCompanySites } from './company'
+
+function markFixtureJobs(jobs: JobListing[], usedFixture: boolean): JobListing[] {
+  if (!usedFixture) return jobs.map(withNormalizedJobUrl)
+  return jobs.map((job) =>
+    withNormalizedJobUrl({
+      ...job,
+      raw: { ...(job.raw || {}), fixture: true }
+    })
+  )
+}
 
 export interface SearchRunResult {
   jobs: JobListing[]
@@ -84,13 +95,14 @@ export async function searchJobs(
       fixturePath: defaultFixturePath(options.appPath, options.cwd),
       maxResults: 20
     })
-    collected.push(...result.jobs)
+    const jobs = markFixtureJobs(result.jobs, result.usedFixture)
+    collected.push(...jobs)
     sources.push({
       source: 'indeed',
       usedFixture: result.usedFixture,
       message: result.message,
       searchUrl: result.searchUrl,
-      jobCount: result.jobs.length
+      jobCount: jobs.length
     })
   }
 
@@ -102,13 +114,14 @@ export async function searchJobs(
       fixturePath: defaultGoogleFixturePath(options.appPath, options.cwd),
       maxResults: 20
     })
-    collected.push(...result.jobs)
+    const jobs = markFixtureJobs(result.jobs, result.usedFixture)
+    collected.push(...jobs)
     sources.push({
       source: 'google',
       usedFixture: result.usedFixture,
       message: result.message,
       searchUrl: result.searchUrl,
-      jobCount: result.jobs.length
+      jobCount: jobs.length
     })
   }
 
@@ -120,13 +133,14 @@ export async function searchJobs(
       fixturePath: defaultLinkedInFixturePath(options.appPath, options.cwd),
       maxResults: 20
     })
-    collected.push(...result.jobs)
+    const jobs = markFixtureJobs(result.jobs, result.usedFixture)
+    collected.push(...jobs)
     sources.push({
       source: 'linkedin',
       usedFixture: result.usedFixture,
       message: result.message,
       searchUrl: result.searchUrl,
-      jobCount: result.jobs.length
+      jobCount: jobs.length
     })
   }
 
@@ -138,13 +152,14 @@ export async function searchJobs(
       maxResults: 25,
       rateLimitMs: Math.min(gap, 1000)
     })
-    collected.push(...result.jobs)
+    const jobs = markFixtureJobs(result.jobs, result.usedFixture)
+    collected.push(...jobs)
     sources.push({
       source: 'company',
       usedFixture: result.usedFixture,
       message: result.message,
       searchUrl: result.searchUrl,
-      jobCount: result.jobs.length
+      jobCount: jobs.length
     })
   }
 

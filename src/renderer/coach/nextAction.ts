@@ -146,9 +146,9 @@ export function deriveNextAction(ctx: CoachContext): NextAction {
       return {
         id: 'queue_apply',
         eyebrow: 'Matches ready',
-        title: `Review ${fits.length} fit${fits.length === 1 ? '' : 's'}, then queue apply`,
+        title: `Review ${fits.length} fit${fits.length === 1 ? '' : 's'}, then Apply`,
         detail:
-          'Open Matches to triage fits, or queue a confirm-mode fill for the top fits from Apply.',
+          'Open Matches and press Apply on a card — opens the real posting, fills like the extension, then Needs you review.',
         ctaLabel: 'Review Matches',
         kind: 'navigate',
         nav: 'matches'
@@ -157,8 +157,8 @@ export function deriveNextAction(ctx: CoachContext): NextAction {
     return {
       id: 'review_matches',
       eyebrow: 'Matches',
-      title: 'Review matches and apply queue',
-      detail: 'Fits are scored. Keep triaging on Matches or confirm pending fills on Apply.',
+      title: 'Review Needs you / field review',
+      detail: 'Fits are scored. Continue on Matches Apply or finish Needs you answers on Apply.',
       ctaLabel: 'Open Apply',
       kind: 'navigate',
       nav: 'apply'

@@ -128,7 +128,10 @@ export interface DesktopApi {
   }) => Promise<AiRereadResult>
   getDiagnostics: () => Promise<DesktopDiagnostics>
   openPracticeTour: () => Promise<{ ok: boolean; message: string }>
-  /** Open a job posting; fixture/demo URLs open the practice form instead of a dead link. */
+  /**
+   * Open a job posting in the automation browser.
+   * Live HTTPS URLs open as-is; only true fixtures fall back to the practice form.
+   */
   openJobPosting: (jobId: string) => Promise<{
     ok: boolean
     usedPractice: boolean

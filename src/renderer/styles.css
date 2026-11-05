@@ -1249,6 +1249,88 @@ code {
   outline-offset: 2px;
 }
 
+.match-apply-actions .btn.primary {
+  min-width: 5.5rem;
+}
+
+.match-apply-hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
+}
+
+.apply-chat {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem 1rem;
+  border-radius: 14px;
+  border: 1px solid #c7d2fe;
+  background: linear-gradient(180deg, #eef2ff 0%, #fff 55%);
+}
+
+.apply-chat-head h3 {
+  margin: 0 0 0.15rem;
+}
+
+.apply-chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+  max-height: 22rem;
+  overflow: auto;
+}
+
+.apply-chat-bubble {
+  max-width: 92%;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.apply-chat-bubble.bot {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.apply-chat-bubble.me {
+  align-self: flex-end;
+  background: var(--brand);
+  color: #fff;
+}
+
+.apply-chat-card {
+  align-self: stretch;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid #c7d2fe;
+  background: #fff;
+}
+
+.apply-chat-card .kick {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--bad);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.apply-chat-card .lbl {
+  font-weight: 650;
+  margin: 0.25rem 0 0.35rem;
+}
+
+.apply-chat-card .ans {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.apply-chat-card .ans .field-edit-input {
+  flex: 1;
+}
+
 @media (max-width: 640px) {
   .match-card-body {
     flex-direction: column;
