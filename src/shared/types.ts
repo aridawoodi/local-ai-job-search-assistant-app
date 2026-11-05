@@ -42,6 +42,8 @@ export interface ApplyFieldReport {
   key?: string
   status: 'filled' | 'skipped' | 'missing' | 'needs_you'
   detail?: string
+  /** Value written (or suggested) for the field — editable inline on Apply. */
+  value?: string
 }
 
 export interface ApplyResult {

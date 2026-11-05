@@ -1188,6 +1188,67 @@ code {
   margin-top: 0.15rem;
 }
 
+.field-report-edit li {
+  display: block;
+}
+
+.field-edit-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.field-edit-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+.field-edit-input {
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.field-edit-input:focus {
+  outline: 2px solid color-mix(in srgb, var(--brand) 35%, transparent);
+  border-color: var(--brand);
+}
+
+.field-edit-hint {
+  margin: 0.2rem 0 0 2.4rem;
+}
+
+.save-answer-prompt {
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #c7d2fe;
+  background: linear-gradient(180deg, #eef2ff 0%, #fff 70%);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.save-answer-title {
+  margin: 0 0 0.25rem;
+  font-weight: 700;
+  color: var(--brand-ink);
+}
+
+.apply-focus {
+  outline: 2px solid color-mix(in srgb, var(--brand) 55%, transparent);
+  outline-offset: 2px;
+}
+
 @media (max-width: 640px) {
   .match-card-body {
     flex-direction: column;

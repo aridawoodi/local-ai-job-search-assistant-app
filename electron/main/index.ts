@@ -15,7 +15,14 @@ import { browserController } from './browser-controller'
 import { getSearchHistory, searchJobs } from '../../src/modules/search'
 import { matchJobs } from '../../src/modules/match'
 import { notifyBestFits } from '../../src/modules/notify'
-import { applyToJobs, confirmAndFill } from '../../src/modules/apply'
+import {
+  applyToJobs,
+  confirmAndFill,
+  resolveOpenPostingUrl
+} from '../../src/modules/apply'
+import { demoPostingReason } from '../../src/shared/job-urls'
+import { patchProfileField } from '../../src/shared/profile-field-patch'
+import { mergeIntoBank, shouldLearnQuestion } from '../../src/shared/answer-bank'
 import {
   buildFullBackup,
   buildProfileExport,
@@ -39,7 +46,6 @@ import {
   type ResumeImportPatch,
   type ResumeReviewKey
 } from '../../src/modules/resume'
-import { mergeIntoBank } from '../../src/shared/answer-bank'
 import {
   emptyPause,
   pauseFromSearchSources,
@@ -862,6 +868,116 @@ function registerIpc(): void {
       }
     }
   })
+
+  ipcMain.handle('jobs:open-posting', async (_e, jobId: string) => {
+    const job = lastJobs.find((j) => j.id === jobId)
+    if (!job) {
+      return { ok: false, usedPractice: false, message: 'Job not found in current search results.' }
+    }
+    const resolved = resolveOpenPostingUrl(job, {
+      appPath: app.getAppPath(),
+      cwd: process.cwd()
+    })
+    const prefs = loadPreferences()
+    try {
+      const page = await browserController.getPage(app.getPath('userData'), prefs.browser)
+      await page.goto(resolved.url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+      return {
+        ok: true,
+        usedPractice: resolved.usedPractice,
+        url: resolved.url,
+        message: resolved.usedPractice
+          ? demoPostingReason(job)
+          : `Opened posting in the automation browser.`
+      }
+    } catch (err) {
+      try {
+        if (resolved.url.startsWith('file://') || /^https?:\/\//i.test(resolved.url)) {
+          await shell.openExternal(resolved.url)
+          return {
+            ok: true,
+            usedPractice: resolved.usedPractice,
+            url: resolved.url,
+            message: resolved.usedPractice
+              ? `${demoPostingReason(job)} (opened in your default browser).`
+              : `Opened posting in your default browser (${
+                  err instanceof Error ? err.message : 'automation browser unavailable'
+                }).`
+          }
+        }
+      } catch {
+        /* fall through */
+      }
+      return {
+        ok: false,
+        usedPractice: resolved.usedPractice,
+        url: resolved.url,
+        message: err instanceof Error ? err.message : String(err)
+      }
+    }
+  })
+
+  ipcMain.handle(
+    'apply:save-fill-answer',
+    (
+      _e,
+      payload: { label: string; key?: string; value: string; saveForFuture: boolean }
+    ) => {
+      const label = String(payload?.label || '').trim()
+      const value = String(payload?.value ?? '')
+      const key = payload?.key
+      if (!payload?.saveForFuture) {
+        return {
+          ok: true,
+          message: 'Kept for this application only — profile and answer bank unchanged.',
+          savedProfile: false,
+          savedBank: false
+        }
+      }
+
+      const prefs = loadPreferences()
+      const bundle = loadProfileBundle()
+      let savedProfile = false
+      let savedBank = false
+      let nextProfile = bundle.profile
+      let nextBank = bundle.answerBank || []
+
+      const patched = patchProfileField(bundle.profile, key, value)
+      if (patched) {
+        nextProfile = prepareProfileForSave(patched)
+        savedProfile = true
+      }
+
+      if (prefs.rememberAnswers !== false && label && shouldLearnQuestion(label)) {
+        const merged = mergeIntoBank(nextBank, [
+          { q: label, a: value, source: 'apply-inline' }
+        ])
+        nextBank = merged.bank
+        savedBank = merged.added > 0 || merged.updated > 0
+      }
+
+      if (savedProfile || savedBank) {
+        saveProfileBundle({
+          ...bundle,
+          profile: nextProfile,
+          answerBank: nextBank
+        })
+      }
+
+      const bits = [
+        savedProfile ? 'updated your profile' : null,
+        savedBank ? 'saved to the answer bank' : null
+      ].filter(Boolean)
+      return {
+        ok: true,
+        message: bits.length
+          ? `Saved for future applications (${bits.join(' + ')}).`
+          : 'Nothing to persist — no matching profile field and answer bank skipped this question.',
+        savedProfile,
+        savedBank
+      }
+    }
+  )
 
   ipcMain.handle('answerbank:list', () => loadProfileBundle().answerBank || [])
 

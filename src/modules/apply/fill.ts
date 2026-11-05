@@ -94,6 +94,7 @@ export async function fillApplicationPage(
       key?: string
       status: 'filled' | 'skipped' | 'missing' | 'needs_you'
       detail?: string
+      value?: string
     }
 
     const p = profileJson as {
@@ -527,7 +528,13 @@ export async function fillApplicationPage(
       }
 
       if (rule.never) {
-        reports.push({ label, key: rule.key, status: 'needs_you', detail: rule.why || 'Fill yourself.' })
+        reports.push({
+          label,
+          key: rule.key,
+          status: 'needs_you',
+          detail: rule.why || 'Fill yourself.',
+          value: ''
+        })
         needsYouCount++
         continue
       }
@@ -537,14 +544,21 @@ export async function fillApplicationPage(
           label,
           key: rule.key,
           status: 'needs_you',
-          detail: 'Voluntary self-ID not set in profile — left blank.'
+          detail: 'Voluntary self-ID not set in profile — left blank.',
+          value: ''
         })
         needsYouCount++
         continue
       }
 
       if (!rule.value) {
-        reports.push({ label, key: rule.key, status: 'missing', detail: 'Empty in profile.' })
+        reports.push({
+          label,
+          key: rule.key,
+          status: 'missing',
+          detail: 'Empty in profile.',
+          value: ''
+        })
         needsYouCount++
         continue
       }
@@ -561,14 +575,21 @@ export async function fillApplicationPage(
             select.value = opt.value
             fire(select, 'input')
             fire(select, 'change')
-            reports.push({ label, key: rule.key, status: 'filled', detail: opt.text })
+            reports.push({
+              label,
+              key: rule.key,
+              status: 'filled',
+              detail: opt.text,
+              value: opt.text
+            })
             filledCount++
           } else {
             reports.push({
               label,
               key: rule.key,
               status: 'needs_you',
-              detail: `No select option for "${rule.value}"`
+              detail: `No select option for "${rule.value}"`,
+              value: String(rule.value)
             })
             needsYouCount++
           }
@@ -583,10 +604,23 @@ export async function fillApplicationPage(
           })
           if (pick) {
             pick.click()
-            reports.push({ label, key: rule.key, status: 'filled', detail: labelFor(pick) || pick.value })
+            const picked = labelFor(pick) || pick.value
+            reports.push({
+              label,
+              key: rule.key,
+              status: 'filled',
+              detail: picked,
+              value: picked
+            })
             filledCount++
           } else {
-            reports.push({ label, key: rule.key, status: 'needs_you', detail: 'No matching radio.' })
+            reports.push({
+              label,
+              key: rule.key,
+              status: 'needs_you',
+              detail: 'No matching radio.',
+              value: String(rule.value)
+            })
             needsYouCount++
           }
         } else if (type === 'date' || /date/i.test(input.getAttribute('data-automation-id') || '')) {
@@ -596,17 +630,25 @@ export async function fillApplicationPage(
               label,
               key: rule.key,
               status: 'needs_you',
-              detail: `Could not parse date from "${rule.value || '(empty)'}" — set availability as YYYY-MM-DD.`
+              detail: `Could not parse date from "${rule.value || '(empty)'}" — set availability as YYYY-MM-DD.`,
+              value: String(rule.value || '')
             })
             needsYouCount++
           } else {
             typeInto(el as HTMLInputElement, iso)
-            reports.push({ label, key: rule.key, status: 'filled', detail: iso })
+            reports.push({ label, key: rule.key, status: 'filled', detail: iso, value: iso })
             filledCount++
           }
         } else {
           typeInto(el as HTMLInputElement | HTMLTextAreaElement, String(rule.value))
-          reports.push({ label, key: rule.key, status: 'filled', detail: String(rule.value).slice(0, 80) })
+          const written = String(rule.value).slice(0, 80)
+          reports.push({
+            label,
+            key: rule.key,
+            status: 'filled',
+            detail: written,
+            value: String(rule.value)
+          })
           filledCount++
         }
       } catch (err) {
@@ -614,7 +656,8 @@ export async function fillApplicationPage(
           label,
           key: rule.key,
           status: 'needs_you',
-          detail: err instanceof Error ? err.message : String(err)
+          detail: err instanceof Error ? err.message : String(err),
+          value: String(rule.value || '')
         })
         needsYouCount++
       }

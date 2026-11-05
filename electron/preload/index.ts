@@ -59,6 +59,13 @@ const api: DesktopApi = {
   }) => ipcRenderer.invoke('resume:ai-reread', payload),
   getDiagnostics: () => ipcRenderer.invoke('diag:info'),
   openPracticeTour: () => ipcRenderer.invoke('practice:open'),
+  openJobPosting: (jobId: string) => ipcRenderer.invoke('jobs:open-posting', jobId),
+  saveFillAnswer: (payload: {
+    label: string
+    key?: string
+    value: string
+    saveForFuture: boolean
+  }) => ipcRenderer.invoke('apply:save-fill-answer', payload),
   listAnswerBank: () => ipcRenderer.invoke('answerbank:list'),
   upsertAnswerBank: (entries: AnswerBankEntry[]) =>
     ipcRenderer.invoke('answerbank:upsert', entries),

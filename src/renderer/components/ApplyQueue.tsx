@@ -5,26 +5,54 @@ import EmptyState from './EmptyState'
 
 interface Props {
   prefs: AppPreferences
+  focusJobId?: string
+}
+
+type SavePrompt = {
+  jobId: string
+  fieldIndex: number
+  label: string
+  key?: string
+  previous: string
+  next: string
 }
 
 function groupFields(fields: ApplyFieldReport[] | undefined) {
   const list = fields || []
-  const needsYou = list.filter(
-    (f) => f.status === 'needs_you' || f.status === 'missing'
-  )
-  const filled = list.filter((f) => f.status === 'filled')
-  const skipped = list.filter((f) => f.status === 'skipped')
+  const needsYou = list
+    .map((f, index) => ({ f, index }))
+    .filter(({ f }) => f.status === 'needs_you' || f.status === 'missing')
+  const filled = list
+    .map((f, index) => ({ f, index }))
+    .filter(({ f }) => f.status === 'filled')
+  const skipped = list
+    .map((f, index) => ({ f, index }))
+    .filter(({ f }) => f.status === 'skipped')
   return { needsYou, filled, skipped }
 }
 
-function FieldGroup({
-  title,
+function fieldDraftValue(f: ApplyFieldReport): string {
+  if (f.value != null) return f.value
+  if (f.status === 'filled' && f.detail) return f.detail
+  return ''
+}
+
+function EditableFieldList({
+  heading,
   items,
-  tone
+  tone,
+  jobId,
+  drafts,
+  onDraftChange,
+  onCommit
 }: {
-  title: string
-  items: ApplyFieldReport[]
+  heading: string
+  items: Array<{ f: ApplyFieldReport; index: number }>
   tone: 'need' | 'done' | 'skip'
+  jobId: string
+  drafts: Record<string, string>
+  onDraftChange: (draftKey: string, value: string) => void
+  onCommit: (fieldIndex: number, previous: string, next: string, field: ApplyFieldReport) => void
 }) {
   if (!items.length) return null
   return (
@@ -32,33 +60,65 @@ function FieldGroup({
       <div className="rvh">
         {tone === 'need' ? 'Needs you' : tone === 'done' ? 'Filled' : 'Skipped'} ({items.length})
       </div>
-      <ul className="field-report">
-        {items.slice(0, 12).map((f, i) => (
-          <li key={`${f.label}-${i}`}>
-            <span
-              className={`pill ${
-                tone === 'done' ? 'ok' : tone === 'need' ? 'bad' : ''
-              }`}
-            >
-              {f.status}
-            </span>{' '}
-            {f.label}
-            {f.detail ? <span className="hint"> — {f.detail}</span> : null}
-          </li>
-        ))}
-        {items.length > 12 ? (
-          <li className="hint">+{items.length - 12} more</li>
+      <ul className="field-report field-report-edit">
+        {items.slice(0, 16).map(({ f, index }) => {
+          const draftKey = `${jobId}:${index}`
+          const baseline = fieldDraftValue(f)
+          const value = drafts[draftKey] ?? baseline
+          const editable = tone !== 'skip'
+          return (
+            <li key={`${f.label}-${index}`}>
+              <div className="field-edit-row">
+                <span
+                  className={`pill ${
+                    tone === 'done' ? 'ok' : tone === 'need' ? 'bad' : ''
+                  }`}
+                >
+                  {f.status}
+                </span>
+                <label className="field-edit-label">
+                  <span>{f.label || heading}</span>
+                  {editable ? (
+                    <input
+                      className="field-edit-input"
+                      value={value}
+                      placeholder={
+                        tone === 'need' ? 'Type an answer for this field…' : undefined
+                      }
+                      onChange={(e) => onDraftChange(draftKey, e.target.value)}
+                      onBlur={(e) => {
+                        const next = e.currentTarget.value.trimEnd()
+                        if (next !== baseline) {
+                          onCommit(index, baseline, next, f)
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span className="hint">{f.detail ? ` — ${f.detail}` : ''}</span>
+                  )}
+                </label>
+              </div>
+              {editable && f.detail && f.status !== 'filled' ? (
+                <p className="hint field-edit-hint">{f.detail}</p>
+              ) : null}
+            </li>
+          )
+        })}
+        {items.length > 16 ? (
+          <li className="hint">+{items.length - 16} more</li>
         ) : null}
       </ul>
     </div>
   )
 }
 
-export default function ApplyQueue({ prefs }: Props) {
+export default function ApplyQueue({ prefs, focusJobId }: Props) {
   const [jobs, setJobs] = useState<JobListing[]>([])
   const [results, setResults] = useState<ApplyResult[]>([])
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [prompt, setPrompt] = useState<SavePrompt | null>(null)
 
   async function reload() {
     const [j, a] = await Promise.all([
@@ -72,6 +132,12 @@ export default function ApplyQueue({ prefs }: Props) {
   useEffect(() => {
     void reload()
   }, [])
+
+  useEffect(() => {
+    if (!focusJobId) return
+    const el = document.getElementById(`apply-job-${focusJobId}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [focusJobId, results])
 
   const pending = useMemo(
     () => results.filter((r) => r.status === 'pending_confirm'),
@@ -141,12 +207,93 @@ export default function ApplyQueue({ prefs }: Props) {
     }
   }
 
+  function applyLocalFieldEdit(jobId: string, fieldIndex: number, value: string) {
+    setResults((prev) =>
+      prev.map((r) => {
+        if (r.jobId !== jobId || !r.fields) return r
+        const fields = r.fields.map((f, i) =>
+          i === fieldIndex
+            ? {
+                ...f,
+                value,
+                detail: value || f.detail,
+                status:
+                  f.status === 'skipped'
+                    ? f.status
+                    : value.trim()
+                      ? ('filled' as const)
+                      : ('needs_you' as const)
+              }
+            : f
+        )
+        const needsYouCount = fields.filter(
+          (f) => f.status === 'needs_you' || f.status === 'missing'
+        ).length
+        const filledCount = fields.filter((f) => f.status === 'filled').length
+        return {
+          ...r,
+          fields,
+          needsYouCount,
+          filledCount,
+          status:
+            r.status === 'submitted' || r.submitted
+              ? r.status
+              : needsYouCount > 0
+                ? ('needs_you' as const)
+                : r.status === 'pending_confirm'
+                  ? r.status
+                  : ('filled' as const)
+        }
+      })
+    )
+  }
+
+  function requestSavePrompt(
+    jobId: string,
+    fieldIndex: number,
+    previous: string,
+    next: string,
+    field: ApplyFieldReport
+  ) {
+    applyLocalFieldEdit(jobId, fieldIndex, next)
+    if (previous === next) return
+    setPrompt({
+      jobId,
+      fieldIndex,
+      label: field.label || field.key || 'Field',
+      key: field.key,
+      previous,
+      next
+    })
+  }
+
+  async function resolveSavePrompt(saveForFuture: boolean) {
+    if (!prompt) return
+    const current = prompt
+    setPrompt(null)
+    setBusy(true)
+    try {
+      const result = await window.desktopApi.saveFillAnswer({
+        label: current.label,
+        key: current.key,
+        value: current.next,
+        saveForFuture
+      })
+      setMsg(result.message)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="panel wide">
       <h2>Apply</h2>
       <p className="lede">
         Popup / panel Fill language: queue best fits, confirm, then review{' '}
-        <strong>Needs you</strong> vs <strong>Filled</strong> fields. Safety:{' '}
+        <strong>Needs you</strong> vs <strong>Filled</strong> fields. Edit answers inline here —
+        if you change one, we&apos;ll ask whether to save it for future applications. Safety:{' '}
         <strong>{prefs.applySafety}</strong>
         {prefs.applySafety === 'unattended'
           ? prefs.allowAutoSubmit
@@ -170,6 +317,45 @@ export default function ApplyQueue({ prefs }: Props) {
       </div>
 
       {msg ? <p className="hint" style={{ marginTop: '0.75rem' }}>{msg}</p> : null}
+
+      {prompt ? (
+        <div className="save-answer-prompt" role="dialog" aria-labelledby="save-answer-title">
+          <div>
+            <p id="save-answer-title" className="save-answer-title">
+              Save this answer for future applications?
+            </p>
+            <p className="hint">
+              You changed <strong>{prompt.label}</strong>
+              {prompt.previous ? (
+                <>
+                  {' '}
+                  from <em>{prompt.previous}</em>
+                </>
+              ) : null}{' '}
+              to <em>{prompt.next || '(empty)'}</em>. Saving updates your profile and/or answer
+              bank so the next fill uses it — this application already has your edit.
+            </p>
+          </div>
+          <div className="actions">
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() => void resolveSavePrompt(false)}
+            >
+              Just this application
+            </button>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={busy}
+              onClick={() => void resolveSavePrompt(true)}
+            >
+              Yes, save for next time
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {!results.length ? (
         <EmptyState
@@ -197,7 +383,11 @@ export default function ApplyQueue({ prefs }: Props) {
               {pending.map((r) => {
                 const job = jobs.find((j) => j.id === r.jobId)
                 return (
-                  <article key={r.jobId} className="inbox-card">
+                  <article
+                    key={r.jobId}
+                    id={`apply-job-${r.jobId}`}
+                    className={`inbox-card${focusJobId === r.jobId ? ' apply-focus' : ''}`}
+                  >
                     <h3>{job?.title || r.jobId}</h3>
                     <p>
                       {job?.company || ''}
@@ -223,7 +413,10 @@ export default function ApplyQueue({ prefs }: Props) {
         <section>
           <h3>Field review</h3>
           {filled.length === 0 ? (
-            <p className="hint">No fills yet this session.</p>
+            <p className="hint">
+              No fills yet this session. After Confirm &amp; fill, edit answers inline below —
+              no need to bounce back to Profile.
+            </p>
           ) : (
             <div className="card-list">
               {filled.map((r) => {
@@ -231,7 +424,11 @@ export default function ApplyQueue({ prefs }: Props) {
                 const submitted = r.submitted || r.status === 'submitted'
                 const groups = groupFields(r.fields)
                 return (
-                  <article key={r.jobId} className="inbox-card review-card">
+                  <article
+                    key={r.jobId}
+                    id={`apply-job-${r.jobId}`}
+                    className={`inbox-card review-card${focusJobId === r.jobId ? ' apply-focus' : ''}`}
+                  >
                     <div className="inbox-head">
                       <div>
                         <h3>{job?.title || r.jobId}</h3>
@@ -258,9 +455,37 @@ export default function ApplyQueue({ prefs }: Props) {
                         : ' · no auto-submit'}
                       {r.stepsAdvanced ? ` · ${r.stepsAdvanced} step(s)` : ''}
                     </p>
-                    <FieldGroup title="Needs you" items={groups.needsYou} tone="need" />
-                    <FieldGroup title="Filled" items={groups.filled} tone="done" />
-                    <FieldGroup title="Skipped" items={groups.skipped} tone="skip" />
+                    <EditableFieldList
+                      heading="Needs you"
+                      items={groups.needsYou}
+                      tone="need"
+                      jobId={r.jobId}
+                      drafts={drafts}
+                      onDraftChange={(k, v) => setDrafts((d) => ({ ...d, [k]: v }))}
+                      onCommit={(index, previous, next, field) =>
+                        requestSavePrompt(r.jobId, index, previous, next, field)
+                      }
+                    />
+                    <EditableFieldList
+                      heading="Filled"
+                      items={groups.filled}
+                      tone="done"
+                      jobId={r.jobId}
+                      drafts={drafts}
+                      onDraftChange={(k, v) => setDrafts((d) => ({ ...d, [k]: v }))}
+                      onCommit={(index, previous, next, field) =>
+                        requestSavePrompt(r.jobId, index, previous, next, field)
+                      }
+                    />
+                    <EditableFieldList
+                      heading="Skipped"
+                      items={groups.skipped}
+                      tone="skip"
+                      jobId={r.jobId}
+                      drafts={drafts}
+                      onDraftChange={(k, v) => setDrafts((d) => ({ ...d, [k]: v }))}
+                      onCommit={() => undefined}
+                    />
                     {!r.fields?.length ? (
                       <p className="hint">No per-field report for this fill.</p>
                     ) : null}
