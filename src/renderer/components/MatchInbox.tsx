@@ -1,18 +1,46 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import type { AppPreferences } from '../../shared/preferences'
 import type { JobListing, MatchResult } from '../../shared/types'
 import EmptyState from './EmptyState'
 
 interface Props {
   prefs: AppPreferences
+  onImproveMatch?: (jobId: string) => void
 }
 
-export default function MatchInbox({ prefs }: Props) {
+function scoreTone(score: number): string {
+  if (score >= 70) return '#16a34a'
+  if (score >= 45) return '#d97706'
+  return '#dc2626'
+}
+
+function scoreLabel(score: number): string {
+  if (score >= 70) return 'Strong match'
+  if (score >= 45) return 'Decent match: tailoring can help'
+  return 'Low match: tailor your resume for this one'
+}
+
+function ScoreRing({ score }: { score: number }) {
+  const pct = Math.max(0, Math.min(100, Math.round(score)))
+  return (
+    <div
+      className="score-ring"
+      style={{ '--p': pct, '--c': scoreTone(pct) } as CSSProperties}
+      role="img"
+      aria-label={`Match ${pct}%`}
+    >
+      <b>{pct}%</b>
+    </div>
+  )
+}
+
+export default function MatchInbox({ prefs, onImproveMatch }: Props) {
   const [jobs, setJobs] = useState<JobListing[]>([])
   const [matches, setMatches] = useState<MatchResult[]>([])
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [filter, setFilter] = useState<'fits' | 'all'>('fits')
+  const [dismissed, setDismissed] = useState<Record<string, boolean>>({})
 
   async function reload() {
     const [j, m] = await Promise.all([
@@ -43,8 +71,10 @@ export default function MatchInbox({ prefs }: Props) {
       filter === 'fits'
         ? scored.filter((r) => (r.match ? r.match.fits : false))
         : scored
-    return list.sort((a, b) => (b.match?.score || 0) - (a.match?.score || 0))
-  }, [jobs, matches, filter])
+    return list
+      .filter((r) => r.job && !dismissed[r.job.id])
+      .sort((a, b) => (b.match?.score || 0) - (a.match?.score || 0))
+  }, [jobs, matches, filter, dismissed])
 
   async function runMatch() {
     setBusy(true)
@@ -102,10 +132,10 @@ export default function MatchInbox({ prefs }: Props) {
 
   return (
     <div className="panel wide">
-      <h2>Match inbox</h2>
+      <h2>Matches</h2>
       <p className="lede">
-        Scored postings vs your profile (threshold {prefs.matchThreshold}). Best fits can notify
-        and queue for apply-fill.
+        Extension-style match cards: score ring, keyword coverage, and Improve match. Threshold{' '}
+        {prefs.matchThreshold}.
       </p>
 
       <div className="actions">
@@ -133,68 +163,109 @@ export default function MatchInbox({ prefs }: Props) {
 
       {msg ? <p className="hint" style={{ marginTop: '0.75rem' }}>{msg}</p> : null}
 
-      <div className="card-list">
+      <div className="card-list match-card-list">
         {rows.length === 0 ? (
           <EmptyState
             title="No matches yet"
-            body="Score jobs against your local profile. Best fits can notify you and queue for apply-fill."
+            body="Score jobs against your local profile. Best fits can notify you and queue for Fill."
             steps={[
               'Pipeline → Run search → match → notify (or Search, then Score jobs here).',
               `Fits use threshold ${prefs.matchThreshold} — lower it in Settings if everything scores shy.`,
-              'Open a posting, or Queue apply / fill when a card looks right.'
+              'Open a posting, Improve match (Resume), or Fill this application when a card looks right.'
             ]}
           />
         ) : (
-          rows.map(({ job, match }) =>
-            job ? (
-              <article key={job.id} className="inbox-card">
-                <div className="inbox-head">
-                  <div>
-                    <h3>{match?.title || job.title}</h3>
-                    <p>
-                      {match?.company || job.company}
-                      {job.location ? ` · ${job.location}` : ''}
-                    </p>
-                  </div>
-                  <div className="inbox-meta">
-                    <span className={`pill ${match?.fits ? 'ok' : ''}`}>
-                      {match ? `score ${match.score}` : 'unscored'}
-                    </span>
-                    <span className="pill">{job.source}</span>
-                  </div>
-                </div>
-                {match?.matched?.length || match?.missing?.length || match?.reasons?.length ? (
-                  <div className="kw-row">
-                    {match.matched?.length ? (
-                      <span className="hint">
-                        Covered: {match.matched.slice(0, 8).join(', ')}
-                      </span>
+          rows.map(({ job, match }) => {
+            if (!job) return null
+            const matched = match?.matched || []
+            const missing = match?.missing || []
+            const total = matched.length + missing.length
+            const matchedCount = matched.length
+            const score = match?.score ?? 0
+            return (
+              <article key={job.id} className="match-card inbox-card">
+                <button
+                  type="button"
+                  className="match-dismiss"
+                  aria-label="Dismiss match card"
+                  onClick={() => setDismissed((d) => ({ ...d, [job.id]: true }))}
+                >
+                  ×
+                </button>
+                <div className="match-card-body">
+                  {match ? <ScoreRing score={score} /> : <div className="score-ring unscored"><b>—</b></div>}
+                  <div className="match-card-main">
+                    <div className="inbox-head" style={{ paddingRight: '1.5rem' }}>
+                      <div>
+                        <h3>{match?.title || job.title}</h3>
+                        <p>
+                          {match?.company || job.company}
+                          {job.location ? ` · ${job.location}` : ''}
+                        </p>
+                      </div>
+                      <span className="pill">{job.source}</span>
+                    </div>
+                    {match ? (
+                      <>
+                        <p className="match-coverage">
+                          Matches {matchedCount} of {total || '—'} keywords
+                        </p>
+                        <p className="hint">{scoreLabel(score)}</p>
+                      </>
+                    ) : (
+                      <p className="hint">Unscored — run Score jobs.</p>
+                    )}
+                    {missing.length ? (
+                      <div className="kw-block">
+                        <div className="kw-label">Missing from your resume</div>
+                        <div className="kw">
+                          {missing.slice(0, 8).map((k) => (
+                            <span key={k} className="miss">
+                              {k}
+                            </span>
+                          ))}
+                          {missing.length > 8 ? (
+                            <span className="miss">+{missing.length - 8}</span>
+                          ) : null}
+                        </div>
+                      </div>
                     ) : null}
-                    {match.missing?.length ? (
-                      <span className="hint warn-text">
-                        Missing: {match.missing.slice(0, 6).join(', ')}
-                      </span>
+                    {matched.length ? (
+                      <div className="kw-block">
+                        <div className="kw-label">Already in your resume</div>
+                        <div className="kw">
+                          {matched.slice(0, 8).map((k) => (
+                            <span key={k}>{k}</span>
+                          ))}
+                          {matched.length > 8 ? <span>+{matched.length - 8}</span> : null}
+                        </div>
+                      </div>
                     ) : null}
-                    {!match.matched?.length && match.reasons?.length ? (
-                      <span className="hint">{match.reasons.slice(0, 3).join(' · ')}</span>
-                    ) : null}
+                    <div className="actions" style={{ marginTop: '0.75rem' }}>
+                      <a className="btn" href={job.url} target="_blank" rel="noreferrer">
+                        Open posting
+                      </a>
+                      <button
+                        className="btn"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onImproveMatch?.(job.id)}
+                      >
+                        Improve my match
+                      </button>
+                      <button
+                        className="btn primary"
+                        disabled={busy}
+                        onClick={() => void queueApply(job.id)}
+                      >
+                        Fill this application
+                      </button>
+                    </div>
                   </div>
-                ) : null}
-                <div className="actions" style={{ marginTop: '0.65rem' }}>
-                  <a className="btn" href={job.url} target="_blank" rel="noreferrer">
-                    Open posting
-                  </a>
-                  <button
-                    className="btn primary"
-                    disabled={busy}
-                    onClick={() => void queueApply(job.id)}
-                  >
-                    Queue apply / fill
-                  </button>
                 </div>
               </article>
-            ) : null
-          )
+            )
+          })
         )}
       </div>
     </div>

@@ -59,6 +59,7 @@ export default function App() {
   const [bundle, setBundle] = useState<StoredProfileBundle>(emptyBundle())
   const [ollama, setOllama] = useState<OllamaStatus | null>(null)
   const [ready, setReady] = useState(false)
+  const [resumeJobId, setResumeJobId] = useState<string | undefined>()
 
   const reloadProfile = useCallback(async () => {
     setBundle(await window.desktopApi.getProfile())
@@ -165,11 +166,17 @@ export default function App() {
         {tab === 'home' ? (
           <PipelinePanel prefs={prefs} />
         ) : tab === 'matches' ? (
-          <MatchInbox prefs={prefs} />
+          <MatchInbox
+            prefs={prefs}
+            onImproveMatch={(jobId) => {
+              setResumeJobId(jobId)
+              setTab('ai')
+            }}
+          />
         ) : tab === 'apply' ? (
           <ApplyQueue prefs={prefs} />
         ) : tab === 'ai' ? (
-          <AiAssistPanel prefs={prefs} />
+          <AiAssistPanel prefs={prefs} initialJobId={resumeJobId} />
         ) : tab === 'tracker' ? (
           <TrackerPanel />
         ) : tab === 'profile' ? (

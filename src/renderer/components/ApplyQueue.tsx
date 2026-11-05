@@ -1,10 +1,57 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AppPreferences } from '../../shared/preferences'
-import type { ApplyResult, JobListing } from '../../shared/types'
+import type { ApplyFieldReport, ApplyResult, JobListing } from '../../shared/types'
 import EmptyState from './EmptyState'
 
 interface Props {
   prefs: AppPreferences
+}
+
+function groupFields(fields: ApplyFieldReport[] | undefined) {
+  const list = fields || []
+  const needsYou = list.filter(
+    (f) => f.status === 'needs_you' || f.status === 'missing'
+  )
+  const filled = list.filter((f) => f.status === 'filled')
+  const skipped = list.filter((f) => f.status === 'skipped')
+  return { needsYou, filled, skipped }
+}
+
+function FieldGroup({
+  title,
+  items,
+  tone
+}: {
+  title: string
+  items: ApplyFieldReport[]
+  tone: 'need' | 'done' | 'skip'
+}) {
+  if (!items.length) return null
+  return (
+    <div className={`field-group field-group-${tone}`}>
+      <div className="rvh">
+        {tone === 'need' ? 'Needs you' : tone === 'done' ? 'Filled' : 'Skipped'} ({items.length})
+      </div>
+      <ul className="field-report">
+        {items.slice(0, 12).map((f, i) => (
+          <li key={`${f.label}-${i}`}>
+            <span
+              className={`pill ${
+                tone === 'done' ? 'ok' : tone === 'need' ? 'bad' : ''
+              }`}
+            >
+              {f.status}
+            </span>{' '}
+            {f.label}
+            {f.detail ? <span className="hint"> — {f.detail}</span> : null}
+          </li>
+        ))}
+        {items.length > 12 ? (
+          <li className="hint">+{items.length - 12} more</li>
+        ) : null}
+      </ul>
+    </div>
+  )
 }
 
 export default function ApplyQueue({ prefs }: Props) {
@@ -57,14 +104,14 @@ export default function ApplyQueue({ prefs }: Props) {
         .slice(0, 5)
         .map((m) => m.jobId)
       if (!ids.length) {
-        setMsg('No fits to queue — lower threshold or run a broader search.')
+        setMsg('No fits to fill — lower threshold or run a broader search.')
         return
       }
       const next = await window.desktopApi.runApply(ids)
       setResults(next)
       setMsg(
         prefs.applySafety === 'confirm'
-          ? `Queued ${next.filter((r) => r.status === 'pending_confirm').length} for confirmation.`
+          ? `Queued ${next.filter((r) => r.status === 'pending_confirm').length} for Fill confirmation.`
           : `Unattended fill finished for ${next.length} job(s).`
       )
     } catch (err) {
@@ -80,8 +127,10 @@ export default function ApplyQueue({ prefs }: Props) {
       const next = await window.desktopApi.confirmApply(ids)
       setResults(next)
       setMsg(
-        `Confirmed fill: ${next.filter((r) => r.status === 'filled' || r.status === 'needs_you').length} filled` +
-          (next.some((r) => r.submitted) ? `, ${next.filter((r) => r.submitted).length} submitted` : ' (submit blocked in confirm mode)') +
+        `Filled: ${next.filter((r) => r.status === 'filled' || r.status === 'needs_you').length}` +
+          (next.some((r) => r.submitted)
+            ? `, ${next.filter((r) => r.submitted).length} submitted`
+            : ' (submit blocked in confirm mode)') +
           '. Tracker updated.'
       )
       await reload()
@@ -94,9 +143,11 @@ export default function ApplyQueue({ prefs }: Props) {
 
   return (
     <div className="panel wide">
-      <h2>Apply queue</h2>
+      <h2>Apply</h2>
       <p className="lede">
-        Safety: <strong>{prefs.applySafety}</strong>
+        Popup / panel Fill language: queue best fits, confirm, then review{' '}
+        <strong>Needs you</strong> vs <strong>Filled</strong> fields. Safety:{' '}
+        <strong>{prefs.applySafety}</strong>
         {prefs.applySafety === 'unattended'
           ? prefs.allowAutoSubmit
             ? ' · auto-submit ON'
@@ -107,14 +158,14 @@ export default function ApplyQueue({ prefs }: Props) {
 
       <div className="actions">
         <button className="btn primary" disabled={busy} onClick={() => void queueTopFits()}>
-          Queue top fits
+          Fill top fits
         </button>
         <button
           className="btn"
           disabled={busy || !pending.length}
           onClick={() => void confirmSelected(pending.map((p) => p.jobId))}
         >
-          Confirm all pending ({pending.length})
+          Confirm &amp; fill all ({pending.length})
         </button>
       </div>
 
@@ -122,11 +173,11 @@ export default function ApplyQueue({ prefs }: Props) {
 
       {!results.length ? (
         <EmptyState
-          title="Apply queue is empty"
-          body="Queue top fits to fill forms in the automation browser. Confirm mode never presses Submit for you."
+          title="Nothing to fill yet"
+          body="Fill top fits opens forms in the automation browser. Confirm mode never presses Submit for you."
           steps={[
             'Run a search and score matches first (Pipeline or Matches).',
-            'Queue top fits — confirm mode parks jobs here until you approve.',
+            'Fill top fits — confirm mode parks jobs here until you approve.',
             prefs.applySafety === 'confirm'
               ? 'Confirm & fill writes the tracker; Submit stays manual.'
               : prefs.allowAutoSubmit
@@ -170,7 +221,7 @@ export default function ApplyQueue({ prefs }: Props) {
         </section>
 
         <section>
-          <h3>Filled / submitted / needs you</h3>
+          <h3>Field review</h3>
           {filled.length === 0 ? (
             <p className="hint">No fills yet this session.</p>
           ) : (
@@ -178,8 +229,9 @@ export default function ApplyQueue({ prefs }: Props) {
               {filled.map((r) => {
                 const job = jobs.find((j) => j.id === r.jobId)
                 const submitted = r.submitted || r.status === 'submitted'
+                const groups = groupFields(r.fields)
                 return (
-                  <article key={r.jobId} className="inbox-card">
+                  <article key={r.jobId} className="inbox-card review-card">
                     <div className="inbox-head">
                       <div>
                         <h3>{job?.title || r.jobId}</h3>
@@ -195,8 +247,10 @@ export default function ApplyQueue({ prefs }: Props) {
                       </span>
                     </div>
                     <p className="hint">
-                      Filled {r.filledCount ?? 0}
-                      {r.needsYouCount ? ` · needs you ${r.needsYouCount}` : ''}
+                      Filled {r.filledCount ?? groups.filled.length}
+                      {r.needsYouCount || groups.needsYou.length
+                        ? ` · Needs you ${r.needsYouCount ?? groups.needsYou.length}`
+                        : ''}
                       {submitted
                         ? r.submitConfirmed
                           ? ' · submit tracked'
@@ -204,17 +258,11 @@ export default function ApplyQueue({ prefs }: Props) {
                         : ' · no auto-submit'}
                       {r.stepsAdvanced ? ` · ${r.stepsAdvanced} step(s)` : ''}
                     </p>
-                    {r.fields?.length ? (
-                      <ul className="field-report">
-                        {r.fields.slice(0, 8).map((f, i) => (
-                          <li key={`${r.jobId}-${i}`}>
-                            <span className={`pill ${f.status === 'filled' ? 'ok' : 'bad'}`}>
-                              {f.status}
-                            </span>{' '}
-                            {f.label}
-                          </li>
-                        ))}
-                      </ul>
+                    <FieldGroup title="Needs you" items={groups.needsYou} tone="need" />
+                    <FieldGroup title="Filled" items={groups.filled} tone="done" />
+                    <FieldGroup title="Skipped" items={groups.skipped} tone="skip" />
+                    {!r.fields?.length ? (
+                      <p className="hint">No per-field report for this fill.</p>
                     ) : null}
                   </article>
                 )
