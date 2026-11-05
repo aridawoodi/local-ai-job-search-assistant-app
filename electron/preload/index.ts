@@ -60,6 +60,8 @@ const api: DesktopApi = {
   getDiagnostics: () => ipcRenderer.invoke('diag:info'),
   openPracticeTour: () => ipcRenderer.invoke('practice:open'),
   openJobPosting: (jobId: string) => ipcRenderer.invoke('jobs:open-posting', jobId),
+  focusFilledForm: (jobId?: string) =>
+    ipcRenderer.invoke('apply:focus-filled-form', jobId),
   saveFillAnswer: (payload: {
     label: string
     key?: string

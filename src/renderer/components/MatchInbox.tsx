@@ -155,11 +155,22 @@ export default function MatchInbox({ prefs, onImproveMatch, onApplied }: Props) 
         top?.status === 'needs_you'
           ? ` Needs you: ${top.needsYouCount ?? 0} field(s) — refine on Apply.`
           : top?.status === 'filled'
-            ? ' Review filled fields on Apply (Submit stays yours).'
+            ? ' Review in browser → Submit on the page (Apply tab has Open / Focus).'
             : ''
+      const practiceHint = top?.usedPractice
+        ? ' Practice form (fixture).'
+        : top?.postingUrl || top?.url
+          ? ` Posting kept open: ${top.postingUrl || top.url}.`
+          : ''
       setMsg(
-        `${open.message} → ${results.map((r) => `${r.status}: ${r.message}`).join(' · ')}${reviewHint}`
+        `${open.message} → ${results.map((r) => `${r.status}: ${r.message}`).join(' · ')}${reviewHint}${practiceHint}`
       )
+      // Raise filled browser again after UI message (app window often steals focus).
+      try {
+        await window.desktopApi.focusFilledForm(jobId)
+      } catch {
+        /* non-fatal */
+      }
       onApplied?.(jobId, results)
     } catch (err) {
       setMsg(err instanceof Error ? err.message : String(err))
