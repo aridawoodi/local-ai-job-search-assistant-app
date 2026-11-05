@@ -13,6 +13,18 @@ interface Props {
   onProfileReload: () => Promise<void>
 }
 
+const SETTINGS_NAV = [
+  { id: 'behaviour', label: 'Behaviour' },
+  { id: 'browser', label: 'Browser' },
+  { id: 'sites', label: 'Sources' },
+  { id: 'ai', label: 'Local AI' },
+  { id: 'tailoring', label: 'Tailoring' },
+  { id: 'backups', label: 'Backups' },
+  { id: 'io', label: 'Import / export' },
+  { id: 'tracker', label: 'Tracker' },
+  { id: 'schedule', label: 'Schedule' }
+]
+
 export default function PreferencesPanel({
   prefs,
   onChange,
@@ -72,22 +84,29 @@ export default function PreferencesPanel({
   }
 
   return (
-    <div className="panel">
+    <div className="panel wide settings-panel">
       <h2>Settings</h2>
       <p className="lede">
-        Same idea as the extension options page: behaviour, browser, sources, local AI, and backups.
-        Defaults stay safe (confirm-before-apply, no auto-submit). Import lives here if you skipped
-        onboarding.
+        Grouped like the extension Options page (Behaviour, Local AI, Sources, Backups, Import).
+        Profile fields live under <strong>Profile</strong>; this hub is setup and behaviour.
       </p>
 
-      <div className="grid">
+      <nav className="section-nav" aria-label="Settings sections">
+        {SETTINGS_NAV.map((n) => (
+          <a key={n.id} href={`#${n.id}`} className="section-nav-link">
+            {n.label}
+          </a>
+        ))}
+      </nav>
+
+      <section id="behaviour" className="profile-section">
+        <h3>Behaviour</h3>
+        <p className="hint">
+          Desktop apply safety maps to the extension’s confirm / auto-fill behaviour. Confirm mode
+          never auto-submits.
+        </p>
         <div className="field">
           <label htmlFor="applySafety">Apply safety</label>
-          <p className="hint">
-            Confirm queues fills until you approve. Unattended fills without per-job confirm.
-            Submit stays off unless you also enable auto-submit below — confirm mode never
-            auto-submits.
-          </p>
           <select
             id="applySafety"
             value={prefs.applySafety}
@@ -107,13 +126,6 @@ export default function PreferencesPanel({
             />
             Allow auto-submit (unattended only)
           </label>
-          <p className="hint">
-            {prefs.applySafety === 'confirm'
-              ? 'Disabled while confirm mode is on — you must confirm fills; Submit is never pressed automatically.'
-              : prefs.allowAutoSubmit
-                ? 'Unattended will click a final Submit/Apply after fill. Respects daily action cap.'
-                : 'Unattended fills forms only; you submit manually.'}
-          </p>
           <label className="check" style={{ marginTop: '0.65rem' }}>
             <input
               type="checkbox"
@@ -122,10 +134,6 @@ export default function PreferencesPanel({
             />
             Advance multi-step / Easy Apply (Next/Continue)
           </label>
-          <p className="hint">
-            After fill, click Next/Continue and re-fill each step (Workday basic, LinkedIn Easy Apply,
-            generic wizards). Confirm mode still never auto-submits.
-          </p>
           <label htmlFor="maxFormSteps" style={{ marginTop: '0.5rem' }}>
             Max form steps
           </label>
@@ -139,13 +147,41 @@ export default function PreferencesPanel({
               void onChange({ maxFormSteps: Math.max(1, Number(e.target.value) || 1) })
             }
           />
+          <label htmlFor="maxActions" style={{ marginTop: '0.5rem' }}>
+            Max actions per day
+          </label>
+          <input
+            id="maxActions"
+            type="number"
+            min={1}
+            max={500}
+            value={prefs.maxActionsPerDay}
+            onChange={(e) =>
+              void onChange({ maxActionsPerDay: Number(e.target.value) || 1 })
+            }
+          />
+          <label htmlFor="threshold" style={{ marginTop: '0.5rem' }}>
+            Match threshold ({prefs.matchThreshold})
+          </label>
+          <input
+            id="threshold"
+            type="number"
+            min={0}
+            max={100}
+            value={prefs.matchThreshold}
+            onChange={(e) =>
+              void onChange({ matchThreshold: Number(e.target.value) || 0 })
+            }
+          />
         </div>
+      </section>
 
+      <section id="browser" className="profile-section">
+        <h3>Browser</h3>
         <div className="field">
           <label htmlFor="browser">Browser to drive</label>
           <p className="hint">
-            Dedicated persistent profile under userData (Chrome and Edge are separate folders —
-            switching browsers means logging in again). No job-board APIs.
+            Dedicated persistent profile under userData (Chrome and Edge are separate folders).
           </p>
           <select
             id="browser"
@@ -159,10 +195,16 @@ export default function PreferencesPanel({
             <option value="edge">Edge</option>
           </select>
         </div>
+      </section>
 
+      <section id="sites" className="profile-section">
+        <h3>Sources / sites</h3>
+        <p className="hint">
+          Desktop equivalent of Options → Sites: which job sources to scrape (no board APIs).
+        </p>
         <div className="field">
           <label>Search sources</label>
-          <p className="hint">Toggle drivers. Rate limit between sources: {prefs.sourceRateLimitMs}ms.</p>
+          <p className="hint">Rate limit between sources: {prefs.sourceRateLimitMs}ms.</p>
           <div className="source-toggles">
             {(
               [
@@ -182,11 +224,9 @@ export default function PreferencesPanel({
               </label>
             ))}
           </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor="searchQuery">Search query</label>
-          <p className="hint">Empty → derive from profile title + top skills.</p>
+          <label htmlFor="searchQuery" style={{ marginTop: '0.75rem' }}>
+            Search query
+          </label>
           <input
             id="searchQuery"
             type="text"
@@ -194,11 +234,9 @@ export default function PreferencesPanel({
             value={prefs.searchQuery}
             onChange={(e) => void onChange({ searchQuery: e.target.value })}
           />
-        </div>
-
-        <div className="field">
-          <label htmlFor="searchLocation">Search location</label>
-          <p className="hint">Empty → profile location or Remote.</p>
+          <label htmlFor="searchLocation" style={{ marginTop: '0.5rem' }}>
+            Search location
+          </label>
           <input
             id="searchLocation"
             type="text"
@@ -206,11 +244,9 @@ export default function PreferencesPanel({
             value={prefs.searchLocation}
             onChange={(e) => void onChange({ searchLocation: e.target.value })}
           />
-        </div>
-
-        <div className="field">
-          <label htmlFor="careerUrls">Company career URLs</label>
-          <p className="hint">One listing URL per line (Greenhouse boards, Lever, careers pages).</p>
+          <label htmlFor="careerUrls" style={{ marginTop: '0.5rem' }}>
+            Company career URLs
+          </label>
           <textarea
             id="careerUrls"
             rows={4}
@@ -226,12 +262,92 @@ export default function PreferencesPanel({
             }
           />
         </div>
+      </section>
 
+      <section id="ai" className="profile-section">
+        <h3>Local AI</h3>
+        <div className="field">
+          <label htmlFor="ollamaUrl">Ollama URL</label>
+          <input
+            id="ollamaUrl"
+            type="text"
+            value={prefs.ollamaUrl}
+            onChange={(e) => void onChange({ ollamaUrl: e.target.value })}
+          />
+          <label htmlFor="ollamaModel" style={{ marginTop: '0.5rem' }}>
+            Ollama model (optional)
+          </label>
+          <input
+            id="ollamaModel"
+            type="text"
+            placeholder="e.g. qwen2.5:3b — empty = first available"
+            value={prefs.ollamaModel}
+            onChange={(e) => void onChange({ ollamaModel: e.target.value })}
+          />
+          <div className="actions" style={{ marginTop: '0.5rem' }}>
+            <button className="btn" type="button" onClick={() => void refreshOllama()}>
+              Check Ollama
+            </button>
+            {ollama ? (
+              <span className={`pill ${ollama.reachable ? 'ok' : 'bad'}`}>
+                <span className="dot" />
+                {ollama.message}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <section id="tailoring" className="profile-section">
+        <h3>Tailoring</h3>
+        <div className="field">
+          <label htmlFor="tailorRules">Tailoring rules (one per line)</label>
+          <p className="hint">Same idea as extension Options → Tailoring rules.</p>
+          <textarea
+            id="tailorRules"
+            rows={4}
+            value={(prefs.tailoringRules || []).join('\n')}
+            onChange={(e) =>
+              void onChange({
+                tailoringRules: e.target.value
+                  .split('\n')
+                  .map((l) => l.trim())
+                  .filter(Boolean)
+              })
+            }
+          />
+        </div>
+      </section>
+
+      <section id="backups" className="profile-section">
+        <h3>Backups</h3>
+        <p className="hint">
+          Export a full <code>kind: job-apply-assistant-backup</code> snapshot anytime. Profile-only
+          export is under Import / export.
+        </p>
+        <div className="actions" style={{ marginTop: 0 }}>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={() =>
+              void (async () => {
+                const r = await window.desktopApi.exportFullBackup()
+                setExportMsg(r.message)
+              })()
+            }
+          >
+            Export full backup
+          </button>
+        </div>
+        {exportMsg ? <p className="hint">{exportMsg}</p> : null}
+      </section>
+
+      <section id="io" className="profile-section">
+        <h3>Import / export</h3>
         <div className="field">
           <label>Extension profile import / export</label>
           <p className="hint">
-            Round-trip <code>job-apply-profile.json</code> and{' '}
-            <code>kind: job-apply-assistant-backup</code>. Status:{' '}
+            Round-trip <code>job-apply-profile.json</code>. Status:{' '}
             <strong>{prefs.extensionImportStatus.replace('_', ' ')}</strong>
           </p>
           <div className="actions" style={{ marginTop: 0 }}>
@@ -256,107 +372,33 @@ export default function PreferencesPanel({
             >
               Export profile
             </button>
-            <button
-              className="btn"
-              type="button"
-              onClick={() =>
-                void (async () => {
-                  const r = await window.desktopApi.exportFullBackup()
-                  setExportMsg(r.message)
-                })()
-              }
-            >
-              Export full backup
-            </button>
           </div>
           {importMsg ? <p className="hint">{importMsg}</p> : null}
-          {exportMsg ? <p className="hint">{exportMsg}</p> : null}
         </div>
+      </section>
 
+      <section id="tracker" className="profile-section">
+        <h3>Tracker</h3>
         <div className="field">
-          <label htmlFor="ollamaUrl">Ollama URL</label>
-          <p className="hint">Used by AI tab (tailor / cover / refine). Soft dependency for other features.</p>
-          <input
-            id="ollamaUrl"
-            type="text"
-            value={prefs.ollamaUrl}
-            onChange={(e) => void onChange({ ollamaUrl: e.target.value })}
-          />
-          <label htmlFor="ollamaModel" style={{ marginTop: '0.5rem' }}>
-            Ollama model (optional)
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={prefs.reminderNotifications}
+              onChange={(e) => void onChange({ reminderNotifications: e.target.checked })}
+            />
+            Desktop notifications for tracker reminders
           </label>
-          <input
-            id="ollamaModel"
-            type="text"
-            placeholder="e.g. qwen2.5:3b — empty = first available"
-            value={prefs.ollamaModel}
-            onChange={(e) => void onChange({ ollamaModel: e.target.value })}
-          />
-          <label htmlFor="tailorRules" style={{ marginTop: '0.5rem' }}>
-            Tailoring rules (one per line)
-          </label>
-          <textarea
-            id="tailorRules"
-            rows={3}
-            value={(prefs.tailoringRules || []).join('\n')}
-            onChange={(e) =>
-              void onChange({
-                tailoringRules: e.target.value
-                  .split('\n')
-                  .map((l) => l.trim())
-                  .filter(Boolean)
-              })
-            }
-          />
-          <div className="actions" style={{ marginTop: '0.5rem' }}>
-            <button className="btn" type="button" onClick={() => void refreshOllama()}>
-              Check Ollama
-            </button>
-            {ollama ? (
-              <span className={`pill ${ollama.reachable ? 'ok' : 'bad'}`}>
-                <span className="dot" />
-                {ollama.message}
-              </span>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor="threshold">Match threshold ({prefs.matchThreshold})</label>
-          <p className="hint">Minimum score (0–100) before notify / apply.</p>
-          <input
-            id="threshold"
-            type="number"
-            min={0}
-            max={100}
-            value={prefs.matchThreshold}
-            onChange={(e) =>
-              void onChange({ matchThreshold: Number(e.target.value) || 0 })
-            }
-          />
-        </div>
-
-        <div className="field">
-          <label htmlFor="maxActions">Max actions per day</label>
-          <p className="hint">Soft cap on automated apply/fill actions.</p>
-          <input
-            id="maxActions"
-            type="number"
-            min={1}
-            max={500}
-            value={prefs.maxActionsPerDay}
-            onChange={(e) =>
-              void onChange({ maxActionsPerDay: Number(e.target.value) || 1 })
-            }
-          />
-        </div>
-
-        <div className="field">
-          <label htmlFor="schedule">Scheduled search (minutes)</label>
           <p className="hint">
-            0 = manual only. When set (≥5), runs search → match → notify on an interval while the app
-            is open. A first run kicks ~8s after enabling for end-to-end verification.
+            Application rows live under the Tracker tab (extension Options → Tracker).
           </p>
+        </div>
+      </section>
+
+      <section id="schedule" className="profile-section">
+        <h3>Scheduled search</h3>
+        <p className="hint">Desktop-only: interval search while the app is open.</p>
+        <div className="field">
+          <label htmlFor="schedule">Interval (minutes; 0 = manual only)</label>
           <input
             id="schedule"
             type="number"
@@ -375,9 +417,6 @@ export default function PreferencesPanel({
             />
             Include unattended apply on schedule (best-fit jobs)
           </label>
-          <p className="hint">
-            Only runs when apply safety is unattended. Confirm mode still queues manually.
-          </p>
           <div className="actions" style={{ marginTop: '0.5rem' }}>
             <button
               className="btn"
@@ -395,19 +434,7 @@ export default function PreferencesPanel({
           </div>
           {scheduleMsg ? <p className="hint">{scheduleMsg}</p> : null}
         </div>
-
-        <div className="field">
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={prefs.reminderNotifications}
-              onChange={(e) => void onChange({ reminderNotifications: e.target.checked })}
-            />
-            Desktop notifications for tracker reminders
-          </label>
-          <p className="hint">Checks due reminder dates periodically while the app is open.</p>
-        </div>
-      </div>
+      </section>
     </div>
   )
 }

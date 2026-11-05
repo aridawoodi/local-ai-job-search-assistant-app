@@ -1,35 +1,210 @@
-import { useEffect, useState } from 'react'
-import type { AnswerBankEntry, StoredProfileBundle } from '../../shared/profile'
-import { profileDisplayName } from '../../shared/profile'
-import EmptyState from './EmptyState'
+import { useEffect, useState, type ReactNode } from 'react'
+import type {
+  AnswerBankEntry,
+  EducationEntry,
+  ProjectEntry,
+  StoredProfileBundle,
+  UserProfile,
+  WorkHistoryEntry
+} from '../../shared/profile'
+import { EMPTY_PROFILE } from '../../shared/profile'
+import {
+  DEGREES,
+  EDU_STATUS,
+  EEO_CHOICES,
+  YN,
+  emptyEducationEntry,
+  emptyProjectEntry,
+  emptyWorkEntry,
+  prepareProfileForSave,
+  splitLines,
+  splitList
+} from '../../shared/profile-helpers'
 
 interface Props {
   bundle: StoredProfileBundle
   onReload?: () => Promise<void>
 }
 
+type Draft = UserProfile
+
+function cloneProfile(p: UserProfile): Draft {
+  return prepareProfileForSave({
+    ...EMPTY_PROFILE,
+    ...p,
+    education: { ...EMPTY_PROFILE.education, ...(p.education || {}) },
+    eeo: { ...EMPTY_PROFILE.eeo, ...(p.eeo || {}) },
+    workHistory: (p.workHistory || []).map((j) => ({
+      ...j,
+      bullets: [...(j.bullets || [])]
+    })),
+    educationList: (p.educationList || []).map((e) => ({ ...e })),
+    projects: (p.projects || []).map((x) => ({
+      ...x,
+      bullets: [...(x.bullets || [])],
+      tech: [...(x.tech || [])]
+    })),
+    skills: [...(p.skills || [])],
+    certifications: [...(p.certifications || [])],
+    languages: [...(p.languages || [])]
+  })
+}
+
+function Field({
+  label,
+  children
+}: {
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <div className="field">
+      <label>{label}</label>
+      {children}
+    </div>
+  )
+}
+
+function TextInput({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  placeholder
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  type?: string
+  placeholder?: string
+}) {
+  return (
+    <Field label={label}>
+      <input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </Field>
+  )
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder = 'Choose… (not set)'
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  options: string[]
+  placeholder?: string
+}) {
+  const opts = [...options]
+  if (value && !opts.includes(value)) opts.unshift(value)
+  return (
+    <Field label={label}>
+      <select value={value || ''} onChange={(e) => onChange(e.target.value)}>
+        <option value="">{placeholder}</option>
+        {opts.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    </Field>
+  )
+}
+
+const PROFILE_NAV = [
+  { id: 'identity', label: 'Contact' },
+  { id: 'location', label: 'Location' },
+  { id: 'links', label: 'Links' },
+  { id: 'workauth', label: 'Work auth' },
+  { id: 'experience', label: 'Experience' },
+  { id: 'education', label: 'Education' },
+  { id: 'projects', label: 'Projects' },
+  { id: 'skills', label: 'Skills' },
+  { id: 'eeo', label: 'EEO' },
+  { id: 'availability', label: 'Availability' },
+  { id: 'writing', label: 'Writing' },
+  { id: 'resume', label: 'Resume text' },
+  { id: 'bank', label: 'Answer bank' }
+]
+
 export default function ProfilePanel({ bundle, onReload }: Props) {
-  const p = bundle.profile
-  const empty = !p.firstName && !p.email && p.skills.length === 0 && !p.resumeText
+  const [draft, setDraft] = useState<Draft>(() => cloneProfile(bundle.profile))
   const [bank, setBank] = useState<AnswerBankEntry[]>(bundle.answerBank || [])
   const [q, setQ] = useState('')
   const [a, setA] = useState('')
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [skillsText, setSkillsText] = useState((bundle.profile.skills || []).join(', '))
+  const [certsText, setCertsText] = useState((bundle.profile.certifications || []).join('\n'))
+  const [langsText, setLangsText] = useState((bundle.profile.languages || []).join(', '))
 
   useEffect(() => {
+    setDraft(cloneProfile(bundle.profile))
     setBank(bundle.answerBank || [])
-  }, [bundle.answerBank])
+    setSkillsText((bundle.profile.skills || []).join(', '))
+    setCertsText((bundle.profile.certifications || []).join('\n'))
+    setLangsText((bundle.profile.languages || []).join(', '))
+    setDirty(false)
+  }, [bundle])
+
+  function patch(partial: Partial<UserProfile>) {
+    setDraft((d) => ({ ...d, ...partial }))
+    setDirty(true)
+  }
+
+  function patchEeo(key: keyof UserProfile['eeo'], value: string) {
+    setDraft((d) => ({ ...d, eeo: { ...d.eeo, [key]: value } }))
+    setDirty(true)
+  }
+
+  async function onSave() {
+    setBusy(true)
+    try {
+      const next = prepareProfileForSave({
+        ...draft,
+        skills: splitList(skillsText),
+        certifications: splitLines(certsText),
+        languages: splitList(langsText)
+      })
+      await window.desktopApi.saveProfile(next)
+      setMsg('Profile saved.')
+      setDirty(false)
+      await onReload?.()
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function onImportResume() {
     setBusy(true)
     try {
+      if (dirty) {
+        const next = prepareProfileForSave({
+          ...draft,
+          skills: splitList(skillsText),
+          certifications: splitLines(certsText),
+          languages: splitList(langsText)
+        })
+        await window.desktopApi.saveProfile(next)
+      }
       const r = await window.desktopApi.importResume()
       if (r.cancelled) {
         setMsg('Cancelled.')
         return
       }
       setMsg(r.message)
+      setDirty(false)
       await onReload?.()
     } catch (err) {
       setMsg(err instanceof Error ? err.message : String(err))
@@ -65,122 +240,695 @@ export default function ProfilePanel({ bundle, onReload }: Props) {
     await onReload?.()
   }
 
-  return (
-    <div className="panel wide">
-      <h2>Profile</h2>
-      <p className="lede">
-        Local copy from extension import and/or resume PDF/DOCX. EEO is never inferred from a resume.
-      </p>
+  function setJob(i: number, partial: Partial<WorkHistoryEntry>) {
+    setDraft((d) => {
+      const workHistory = d.workHistory.map((j, k) => (k === i ? { ...j, ...partial } : j))
+      if (partial.current === true) {
+        workHistory[i] = { ...workHistory[i], end: 'Present', current: true }
+      } else if (partial.current === false && workHistory[i].end === 'Present') {
+        workHistory[i] = { ...workHistory[i], end: '', current: false }
+      }
+      return { ...d, workHistory }
+    })
+    setDirty(true)
+  }
 
-      <div className="actions" style={{ marginTop: 0 }}>
-        <button className="btn primary" disabled={busy} onClick={() => void onImportResume()}>
-          Import resume (PDF/DOCX)
-        </button>
-        <button
-          className="btn"
-          disabled={busy}
-          onClick={() =>
-            void (async () => {
-              setBusy(true)
-              try {
-                const r = await window.desktopApi.exportProfile()
-                setMsg(r.message)
-              } finally {
-                setBusy(false)
-              }
-            })()
-          }
-        >
-          Export profile JSON
-        </button>
-        <button
-          className="btn"
-          disabled={busy}
-          onClick={() =>
-            void (async () => {
-              setBusy(true)
-              try {
-                const r = await window.desktopApi.exportFullBackup()
-                setMsg(r.message)
-              } finally {
-                setBusy(false)
-              }
-            })()
-          }
-        >
-          Export full backup
-        </button>
+  function setEdu(i: number, partial: Partial<EducationEntry>) {
+    setDraft((d) => {
+      let educationList = d.educationList.map((e, k) => (k === i ? { ...e, ...partial } : e))
+      if (partial.highest) {
+        educationList = educationList.map((e, k) => ({ ...e, highest: k === i }))
+      }
+      return { ...d, educationList }
+    })
+    setDirty(true)
+  }
+
+  function setProj(i: number, partial: Partial<ProjectEntry>) {
+    setDraft((d) => ({
+      ...d,
+      projects: d.projects.map((p, k) => (k === i ? { ...p, ...partial } : p))
+    }))
+    setDirty(true)
+  }
+
+  const p = draft
+
+  return (
+    <div className="panel wide profile-editor">
+      <div className="profile-editor-head">
+        <div>
+          <h2>Profile</h2>
+          <p className="lede">
+            Same sections as the extension Options → Profile. EEO is user-set only — never filled
+            from a resume or local AI.
+          </p>
+        </div>
+        <div className="actions" style={{ marginTop: 0 }}>
+          <button className="btn" disabled={busy} onClick={() => void onImportResume()}>
+            Import resume (PDF/DOCX)
+          </button>
+          <button
+            className="btn primary"
+            disabled={busy || !dirty}
+            onClick={() => void onSave()}
+          >
+            {dirty ? 'Save profile' : 'Saved'}
+          </button>
+        </div>
       </div>
       {msg ? <p className="hint">{msg}</p> : null}
 
-      {empty ? (
-        <EmptyState
-          title="No profile loaded yet"
-          body="Matching and apply-fill need local profile fields. EEO is never inferred from a resume."
-          steps={[
-            'Import resume (PDF/DOCX) here, or Settings → Import from file / Load sample.',
-            'Add answer-bank Q&A for common application questions.',
-            'Export profile / full backup anytime — data stays under Electron userData.'
-          ]}
+      <nav className="section-nav" aria-label="Profile sections">
+        {PROFILE_NAV.map((n) => (
+          <a key={n.id} href={`#${n.id}`} className="section-nav-link">
+            {n.label}
+          </a>
+        ))}
+      </nav>
+
+      <section id="identity" className="profile-section">
+        <h3>Contact</h3>
+        <div className="form-grid">
+          <TextInput label="First name" value={p.firstName} onChange={(v) => patch({ firstName: v })} />
+          <TextInput label="Last name" value={p.lastName} onChange={(v) => patch({ lastName: v })} />
+          <TextInput
+            label="Preferred name"
+            value={p.preferredName}
+            onChange={(v) => patch({ preferredName: v })}
+          />
+          <SelectField
+            label="Pronouns"
+            value={p.pronouns}
+            onChange={(v) => patch({ pronouns: v })}
+            options={EEO_CHOICES.pronouns}
+            placeholder="Not set"
+          />
+          <TextInput
+            label="Email"
+            type="email"
+            value={p.email}
+            onChange={(v) => patch({ email: v })}
+          />
+          <TextInput
+            label="Phone"
+            type="tel"
+            value={p.phone}
+            onChange={(v) => patch({ phone: v })}
+          />
+        </div>
+      </section>
+
+      <section id="location" className="profile-section">
+        <h3>Location</h3>
+        <div className="form-grid">
+          <TextInput label="City" value={p.city} onChange={(v) => patch({ city: v })} />
+          <TextInput label="State" value={p.state} onChange={(v) => patch({ state: v })} />
+          <TextInput label="ZIP" value={p.zip} onChange={(v) => patch({ zip: v })} />
+          <TextInput label="Country" value={p.country} onChange={(v) => patch({ country: v })} />
+          <TextInput
+            label="Location (as written on forms)"
+            value={p.location}
+            onChange={(v) => patch({ location: v })}
+          />
+        </div>
+      </section>
+
+      <section id="links" className="profile-section">
+        <h3>Links</h3>
+        <div className="form-grid">
+          <TextInput label="LinkedIn" value={p.linkedin} onChange={(v) => patch({ linkedin: v })} />
+          <TextInput label="GitHub" value={p.github} onChange={(v) => patch({ github: v })} />
+          <TextInput
+            label="Portfolio"
+            value={p.portfolio}
+            onChange={(v) => patch({ portfolio: v })}
+          />
+          <TextInput label="Website" value={p.website} onChange={(v) => patch({ website: v })} />
+        </div>
+      </section>
+
+      <section id="workauth" className="profile-section">
+        <h3>Work authorization</h3>
+        <p className="hint">Never filled from a resume — set these yourself.</p>
+        <div className="form-grid">
+          <SelectField
+            label="Authorized to work in the US?"
+            value={p.workAuthorizedUS}
+            onChange={(v) => patch({ workAuthorizedUS: v })}
+            options={[...YN].filter(Boolean)}
+          />
+          <SelectField
+            label="Need sponsorship?"
+            value={p.needsSponsorship}
+            onChange={(v) => patch({ needsSponsorship: v })}
+            options={[...YN].filter(Boolean)}
+          />
+          <TextInput
+            label="Citizenship"
+            value={p.citizenship}
+            onChange={(v) => patch({ citizenship: v })}
+          />
+          <SelectField
+            label="Over 18?"
+            value={p.over18}
+            onChange={(v) => patch({ over18: v })}
+            options={[...YN].filter(Boolean)}
+          />
+        </div>
+      </section>
+
+      <section id="experience" className="profile-section">
+        <h3>Work history</h3>
+        <p className="hint">
+          Current job is derived from end date = Present (extension parity). Mirrors:{' '}
+          {[p.currentTitle, p.currentEmployer].filter(Boolean).join(' @ ') || 'none'}
+        </p>
+        <TextInput
+          label="Years of experience"
+          value={p.yearsExperience}
+          onChange={(v) => patch({ yearsExperience: v })}
         />
-      ) : (
-        <>
-          <div className="profile-grid">
-            <div className="kv">
-              <span className="k">Name</span>
-              <span className="v">{profileDisplayName(p)}</span>
-            </div>
-            <div className="kv">
-              <span className="k">Email</span>
-              <span className="v">{p.email || '—'}</span>
-            </div>
-            <div className="kv">
-              <span className="k">Title</span>
-              <span className="v">{p.currentTitle || '—'}</span>
-            </div>
-            <div className="kv">
-              <span className="k">Location</span>
-              <span className="v">
-                {p.location || [p.city, p.state].filter(Boolean).join(', ') || '—'}
-              </span>
-            </div>
-            <div className="kv">
-              <span className="k">Answer bank</span>
-              <span className="v">{bank.length}</span>
-            </div>
-            <div className="kv">
-              <span className="k">Resume text</span>
-              <span className="v">{p.resumeText ? `${p.resumeText.length} chars` : '—'}</span>
-            </div>
-          </div>
+        <div className="entry-list">
+          {p.workHistory.map((job, i) => (
+            <article key={i} className="entry-card">
+              <div className="entry-card-head">
+                <strong>Job {i + 1}</strong>
+                <div className="actions" style={{ marginTop: 0 }}>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={i === 0}
+                    onClick={() => {
+                      setDraft((d) => {
+                        const workHistory = [...d.workHistory]
+                        ;[workHistory[i - 1], workHistory[i]] = [
+                          workHistory[i],
+                          workHistory[i - 1]
+                        ]
+                        return { ...d, workHistory }
+                      })
+                      setDirty(true)
+                    }}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={i >= p.workHistory.length - 1}
+                    onClick={() => {
+                      setDraft((d) => {
+                        const workHistory = [...d.workHistory]
+                        ;[workHistory[i], workHistory[i + 1]] = [
+                          workHistory[i + 1],
+                          workHistory[i]
+                        ]
+                        return { ...d, workHistory }
+                      })
+                      setDirty(true)
+                    }}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      setDraft((d) => ({
+                        ...d,
+                        workHistory: d.workHistory.filter((_, k) => k !== i)
+                      }))
+                      setDirty(true)
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+              <div className="form-grid">
+                <TextInput
+                  label="Title"
+                  value={job.title || ''}
+                  onChange={(v) => setJob(i, { title: v })}
+                />
+                <TextInput
+                  label="Company"
+                  value={job.company || ''}
+                  onChange={(v) => setJob(i, { company: v })}
+                />
+                <TextInput
+                  label="Location"
+                  value={job.location || ''}
+                  onChange={(v) => setJob(i, { location: v })}
+                />
+                <TextInput
+                  label="Start"
+                  value={job.start || ''}
+                  onChange={(v) => setJob(i, { start: v })}
+                  placeholder="Jan 2021"
+                />
+                <TextInput
+                  label="End"
+                  value={job.end || ''}
+                  onChange={(v) => setJob(i, { end: v, current: /present/i.test(v) })}
+                  placeholder="Present or date"
+                />
+              </div>
+              <label className="check" style={{ marginTop: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={!!job.current || /present/i.test(job.end || '')}
+                  onChange={(e) => setJob(i, { current: e.target.checked })}
+                />
+                I currently work here
+              </label>
+              <Field label="Bullets (one per line)">
+                <textarea
+                  rows={4}
+                  value={(job.bullets || []).join('\n')}
+                  onChange={(e) =>
+                    setJob(i, {
+                      bullets: e.target.value
+                        .split('\n')
+                        .map((l) => l.trim())
+                        .filter(Boolean)
+                    })
+                  }
+                />
+              </Field>
+            </article>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            setDraft((d) => ({ ...d, workHistory: [emptyWorkEntry(), ...d.workHistory] }))
+            setDirty(true)
+          }}
+        >
+          + Add a job
+        </button>
+      </section>
 
-          <div className="field" style={{ marginTop: '1rem' }}>
-            <label>Skills</label>
-            <div className="skills">
-              {p.skills.length ? (
-                p.skills.map((s) => (
-                  <span key={s} className="skill">
-                    {s}
-                  </span>
-                ))
-              ) : (
-                <span className="hint">No skills yet.</span>
-              )}
-            </div>
-          </div>
+      <section id="education" className="profile-section">
+        <h3>Education</h3>
+        <div className="entry-list">
+          {p.educationList.map((edu, i) => (
+            <article key={i} className="entry-card">
+              <div className="entry-card-head">
+                <strong>School {i + 1}</strong>
+                <div className="actions" style={{ marginTop: 0 }}>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={i === 0}
+                    onClick={() => {
+                      setDraft((d) => {
+                        const educationList = [...d.educationList]
+                        ;[educationList[i - 1], educationList[i]] = [
+                          educationList[i],
+                          educationList[i - 1]
+                        ]
+                        return { ...d, educationList }
+                      })
+                      setDirty(true)
+                    }}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={i >= p.educationList.length - 1}
+                    onClick={() => {
+                      setDraft((d) => {
+                        const educationList = [...d.educationList]
+                        ;[educationList[i], educationList[i + 1]] = [
+                          educationList[i + 1],
+                          educationList[i]
+                        ]
+                        return { ...d, educationList }
+                      })
+                      setDirty(true)
+                    }}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      setDraft((d) => ({
+                        ...d,
+                        educationList: d.educationList.filter((_, k) => k !== i)
+                      }))
+                      setDirty(true)
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+              <div className="form-grid">
+                <TextInput
+                  label="School"
+                  value={edu.school || ''}
+                  onChange={(v) => setEdu(i, { school: v })}
+                />
+                <SelectField
+                  label="Degree"
+                  value={edu.degree || ''}
+                  onChange={(v) => setEdu(i, { degree: v })}
+                  options={[...DEGREES]}
+                  placeholder="—"
+                />
+                <TextInput
+                  label="Field"
+                  value={edu.field || ''}
+                  onChange={(v) => setEdu(i, { field: v })}
+                />
+                <TextInput
+                  label="Location"
+                  value={edu.location || ''}
+                  onChange={(v) => setEdu(i, { location: v })}
+                />
+                <TextInput
+                  label="Start"
+                  value={edu.start || ''}
+                  onChange={(v) => setEdu(i, { start: v })}
+                />
+                <TextInput
+                  label="End"
+                  value={edu.end || ''}
+                  onChange={(v) => setEdu(i, { end: v })}
+                />
+                <SelectField
+                  label="Status"
+                  value={edu.status || 'completed'}
+                  onChange={(v) => setEdu(i, { status: v })}
+                  options={EDU_STATUS.map(([v]) => v)}
+                  placeholder="completed"
+                />
+              </div>
+              <label className="check" style={{ marginTop: '0.5rem' }}>
+                <input
+                  type="radio"
+                  name="highest-degree"
+                  checked={!!edu.highest}
+                  onChange={() => setEdu(i, { highest: true })}
+                />
+                Highest degree
+              </label>
+            </article>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            setDraft((d) => ({
+              ...d,
+              educationList: [
+                ...d.educationList,
+                emptyEducationEntry(d.educationList.length === 0)
+              ]
+            }))
+            setDirty(true)
+          }}
+        >
+          + Add school
+        </button>
+      </section>
 
-          {p.summary ? (
-            <div className="field" style={{ marginTop: '1rem' }}>
-              <label>Summary</label>
-              <p className="hint" style={{ color: 'var(--text)' }}>
-                {p.summary}
-              </p>
-            </div>
-          ) : null}
-        </>
-      )}
+      <section id="projects" className="profile-section">
+        <h3>Projects</h3>
+        <div className="entry-list">
+          {p.projects.map((proj, i) => (
+            <article key={i} className="entry-card">
+              <div className="entry-card-head">
+                <strong>Project {i + 1}</strong>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setDraft((d) => ({
+                      ...d,
+                      projects: d.projects.filter((_, k) => k !== i)
+                    }))
+                    setDirty(true)
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+              <div className="form-grid">
+                <TextInput
+                  label="Name"
+                  value={proj.name || ''}
+                  onChange={(v) => setProj(i, { name: v })}
+                />
+                <TextInput
+                  label="Link"
+                  value={proj.link || ''}
+                  onChange={(v) => setProj(i, { link: v })}
+                />
+                <TextInput
+                  label="Role"
+                  value={proj.role || ''}
+                  onChange={(v) => setProj(i, { role: v })}
+                />
+                <TextInput
+                  label="Start"
+                  value={proj.start || ''}
+                  onChange={(v) => setProj(i, { start: v })}
+                />
+                <TextInput
+                  label="End"
+                  value={proj.end || ''}
+                  onChange={(v) => setProj(i, { end: v })}
+                />
+              </div>
+              <Field label="Description">
+                <textarea
+                  rows={2}
+                  value={proj.description || ''}
+                  onChange={(e) => setProj(i, { description: e.target.value })}
+                />
+              </Field>
+              <Field label="Tech (comma-separated)">
+                <input
+                  type="text"
+                  value={(proj.tech || []).join(', ')}
+                  onChange={(e) => setProj(i, { tech: splitList(e.target.value) })}
+                />
+              </Field>
+              <Field label="Bullets (one per line)">
+                <textarea
+                  rows={3}
+                  value={(proj.bullets || []).join('\n')}
+                  onChange={(e) =>
+                    setProj(i, {
+                      bullets: e.target.value
+                        .split('\n')
+                        .map((l) => l.trim())
+                        .filter(Boolean)
+                    })
+                  }
+                />
+              </Field>
+            </article>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            setDraft((d) => ({ ...d, projects: [...d.projects, emptyProjectEntry()] }))
+            setDirty(true)
+          }}
+        >
+          + Add project
+        </button>
+      </section>
 
-      <section style={{ marginTop: '1.5rem' }}>
+      <section id="skills" className="profile-section">
+        <h3>Skills, certifications & languages</h3>
+        <Field label="Skills (commas / semicolons)">
+          <textarea
+            rows={3}
+            value={skillsText}
+            onChange={(e) => {
+              setSkillsText(e.target.value)
+              setDirty(true)
+            }}
+          />
+        </Field>
+        <Field label="Certifications (one per line)">
+          <textarea
+            rows={3}
+            value={certsText}
+            onChange={(e) => {
+              setCertsText(e.target.value)
+              setDirty(true)
+            }}
+          />
+        </Field>
+        <Field label="Languages (commas)">
+          <textarea
+            rows={2}
+            value={langsText}
+            onChange={(e) => {
+              setLangsText(e.target.value)
+              setDirty(true)
+            }}
+          />
+        </Field>
+      </section>
+
+      <section id="eeo" className="profile-section">
+        <h3>Voluntary self-identification (EEO)</h3>
+        <p className="hint">
+          Optional. Empty = not set. Resume import and local AI never invent these.
+        </p>
+        <div className="form-grid">
+          {(
+            [
+              ['gender', 'Gender'],
+              ['transgender', 'Transgender'],
+              ['sexualOrientation', 'Sexual orientation'],
+              ['ethnicity', 'Race / ethnicity'],
+              ['hispanicLatino', 'Hispanic or Latino'],
+              ['veteran', 'Veteran status'],
+              ['disability', 'Disability']
+            ] as const
+          ).map(([key, label]) => (
+            <SelectField
+              key={key}
+              label={label}
+              value={p.eeo[key] || ''}
+              onChange={(v) => patchEeo(key, v)}
+              options={EEO_CHOICES[key] || []}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section id="availability" className="profile-section">
+        <h3>Availability & preferences</h3>
+        <div className="form-grid">
+          <TextInput
+            label="Availability / start date"
+            value={p.availability}
+            onChange={(v) => patch({ availability: v })}
+          />
+          <TextInput
+            label="Notice period"
+            value={p.noticePeriod}
+            onChange={(v) => patch({ noticePeriod: v })}
+          />
+          <TextInput
+            label="Salary expectation"
+            value={p.salaryExpectation}
+            onChange={(v) => patch({ salaryExpectation: v })}
+          />
+          <SelectField
+            label="Willing to relocate?"
+            value={p.willingToRelocate}
+            onChange={(v) => patch({ willingToRelocate: v })}
+            options={[...YN].filter(Boolean)}
+          />
+          <TextInput
+            label="How did you hear about us"
+            value={p.howDidYouHear}
+            onChange={(v) => patch({ howDidYouHear: v })}
+          />
+          <TextInput
+            label="Signature"
+            value={p.signature}
+            onChange={(v) => patch({ signature: v })}
+          />
+        </div>
+        <Field label="Summary">
+          <textarea
+            rows={4}
+            value={p.summary}
+            onChange={(e) => patch({ summary: e.target.value })}
+          />
+        </Field>
+      </section>
+
+      <section id="writing" className="profile-section">
+        <h3>Writing style</h3>
+        <Field label="Tone notes">
+          <textarea
+            rows={3}
+            value={p.toneNotes}
+            onChange={(e) => patch({ toneNotes: e.target.value })}
+          />
+        </Field>
+        <Field label="Writing samples">
+          <textarea
+            rows={8}
+            value={p.writingSamples}
+            onChange={(e) => patch({ writingSamples: e.target.value })}
+          />
+        </Field>
+      </section>
+
+      <section id="resume" className="profile-section">
+        <h3>Resume text</h3>
+        <p className="hint">
+          Full plain text used for matching and AI essays (filled by import, editable). Cap 20k
+          chars on import.
+        </p>
+        <Field label="resumeText">
+          <textarea
+            rows={10}
+            value={p.resumeText}
+            onChange={(e) => patch({ resumeText: e.target.value })}
+          />
+        </Field>
+        <div className="actions">
+          <button
+            className="btn"
+            disabled={busy}
+            onClick={() =>
+              void (async () => {
+                setBusy(true)
+                try {
+                  const r = await window.desktopApi.exportProfile()
+                  setMsg(r.message)
+                } finally {
+                  setBusy(false)
+                }
+              })()
+            }
+          >
+            Export profile JSON
+          </button>
+          <button
+            className="btn"
+            disabled={busy}
+            onClick={() =>
+              void (async () => {
+                setBusy(true)
+                try {
+                  const r = await window.desktopApi.exportFullBackup()
+                  setMsg(r.message)
+                } finally {
+                  setBusy(false)
+                }
+              })()
+            }
+          >
+            Export full backup
+          </button>
+        </div>
+      </section>
+
+      <section id="bank" className="profile-section">
         <h3>Answer bank</h3>
         <p className="hint">
           Similarity merge ≥85% (extension parity). Sensitive / consent prompts are never learned.
@@ -200,7 +948,6 @@ export default function ProfilePanel({ bundle, onReload }: Props) {
             </button>
           </div>
         </div>
-
         {bank.length === 0 ? (
           <p className="hint">No saved answers yet.</p>
         ) : (
@@ -223,6 +970,14 @@ export default function ProfilePanel({ bundle, onReload }: Props) {
           </div>
         )}
       </section>
+
+      {dirty ? (
+        <div className="sticky-save">
+          <button className="btn primary" disabled={busy} onClick={() => void onSave()}>
+            Save profile changes
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }
