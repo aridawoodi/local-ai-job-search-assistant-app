@@ -1,5 +1,5 @@
 import type { AppPreferences } from './preferences'
-import type { AnswerBankEntry, StoredProfileBundle } from './profile'
+import type { AnswerBankEntry, StoredProfileBundle, UserProfile } from './profile'
 import type { OllamaStatus } from './ollama'
 import type { ApplicationRow, TrackerStage, TrackerStatus } from './tracker'
 import type { PipelinePause } from './pause'
@@ -56,6 +56,7 @@ export interface DesktopApi {
   getPreferences: () => Promise<AppPreferences>
   setPreferences: (partial: Partial<AppPreferences>) => Promise<AppPreferences>
   getProfile: () => Promise<StoredProfileBundle>
+  saveProfile: (profile: UserProfile) => Promise<StoredProfileBundle>
   getPipelineStatus: () => Promise<PipelineStatus>
   runSearch: () => Promise<SearchUiResult>
   getSearchHistory: () => Promise<SearchHistoryEntry[]>

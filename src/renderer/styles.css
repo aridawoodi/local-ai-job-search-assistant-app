@@ -850,6 +850,109 @@ code {
   margin: 0.35rem 0 0;
 }
 
+/* Phase 2 — Profile editor + Settings section anchors */
+.section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  padding: 0.65rem 0 1rem;
+  margin: 0 0 0.5rem;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 2;
+}
+
+.section-nav-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.2rem 0;
+}
+
+.section-nav-link:hover {
+  color: var(--brand);
+}
+
+.profile-editor-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.profile-section {
+  margin: 1.35rem 0 1.75rem;
+  padding: 1.1rem 1.15rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  scroll-margin-top: 3.5rem;
+}
+
+.profile-section h3 {
+  margin: 0 0 0.65rem;
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.form-grid {
+  display: grid;
+  gap: 0.75rem 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.entry-list {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0.75rem 0;
+}
+
+.entry-card {
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.entry-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+  resize: vertical;
+}
+
+.sticky-save {
+  position: sticky;
+  bottom: 0.75rem;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 0;
+  z-index: 3;
+}
+
+.settings-panel .profile-section {
+  max-width: 720px;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     grid-template-columns: 1fr;

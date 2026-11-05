@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { DesktopApi, TrackerUpdatePatch, AiJobInput } from '../../src/shared/ipc'
 import type { AppPreferences } from '../../src/shared/preferences'
-import type { AnswerBankEntry } from '../../src/shared/profile'
+import type { AnswerBankEntry, UserProfile } from '../../src/shared/profile'
 import type { JobListing, MatchResult } from '../../src/shared/types'
 import type { CoverLength } from '../../src/modules/ai/cover'
 import type { RefineMode } from '../../src/modules/ai/refine'
@@ -11,6 +11,7 @@ const api: DesktopApi = {
   setPreferences: (partial: Partial<AppPreferences>) =>
     ipcRenderer.invoke('prefs:set', partial),
   getProfile: () => ipcRenderer.invoke('profile:get'),
+  saveProfile: (profile: UserProfile) => ipcRenderer.invoke('profile:save', profile),
   getPipelineStatus: () => ipcRenderer.invoke('pipeline:status'),
   runSearch: () => ipcRenderer.invoke('pipeline:search'),
   getSearchHistory: () => ipcRenderer.invoke('pipeline:search-history'),

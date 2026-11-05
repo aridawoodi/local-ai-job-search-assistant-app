@@ -40,7 +40,8 @@ import {
   pickSessionPause,
   type PipelinePause
 } from '../../src/shared/pause'
-import type { AnswerBankEntry } from '../../src/shared/profile'
+import type { AnswerBankEntry, UserProfile } from '../../src/shared/profile'
+import { prepareProfileForSave } from '../../src/shared/profile-helpers'
 import type { ApplyResult, JobListing, MatchResult, PipelineStatus } from '../../src/shared/types'
 import type { TrackerStage, TrackerStatus } from '../../src/shared/tracker'
 import type { CoverLength } from '../../src/modules/ai/cover'
@@ -374,6 +375,11 @@ function registerIpc(): void {
     return next
   })
   ipcMain.handle('profile:get', () => loadProfileBundle())
+  ipcMain.handle('profile:save', (_e, profile: UserProfile) => {
+    const bundle = loadProfileBundle()
+    const next = prepareProfileForSave(profile || bundle.profile)
+    return saveProfileBundle({ ...bundle, profile: next })
+  })
   ipcMain.handle('pipeline:status', () => pipelineStatus)
   ipcMain.handle('pipeline:search-history', () => getSearchHistory())
   ipcMain.handle('pipeline:last-jobs', () => lastJobs)
