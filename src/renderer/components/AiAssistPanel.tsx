@@ -148,11 +148,12 @@ export default function AiAssistPanel({ prefs }: Props) {
 
   return (
     <div className="panel wide">
-      <h2>AI assist</h2>
+      <h2>Resume</h2>
       <p className="lede">
-        Local Ollama flows for resume tailor, cover letter, and answer refine. Fact checks block
-        invented numbers/tools. Ollama URL: <code>{prefs.ollamaUrl}</code>
-        {prefs.ollamaModel ? ` · model ${prefs.ollamaModel}` : ''}.
+        Extension panel <strong>Resume</strong> tab equivalents: tailor for this job, draft a cover
+        letter, refine long answers. Fact checks block invented numbers/tools. Ollama:{' '}
+        <code>{prefs.ollamaUrl}</code>
+        {prefs.ollamaModel ? ` · ${prefs.ollamaModel}` : ''}.
       </p>
 
       <div className="field">

@@ -1,22 +1,42 @@
+/* Extension Quiet Chrome tokens — ported from job-apply-assistant lib/pages.css + options/popup */
 :root {
-  --indigo: #4f46e5;
-  --violet: #7c3aed;
+  --brand: #4f46e5;
+  --brand2: #7c3aed;
+  --indigo: var(--brand);
+  --violet: var(--brand2);
   --emerald: #10b981;
-  --bg: #0f1220;
-  --bg-elevated: #171b2e;
-  --bg-soft: #222741;
-  --border: #2f3554;
-  --text: #e8eaf6;
-  --muted: #9aa3c2;
-  --accent: var(--indigo);
-  --accent-2: var(--violet);
-  --success: var(--emerald);
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --bg: #f5f6fb;
+  --surface: #ffffff;
+  --surface-soft: #f8fafc;
+  --ok: #15803d;
+  --bad: #b91c1b;
+  --warn: #a16207;
+  --warn-bg: #fef9c3;
+  --ok-bg: #dcfce7;
+  --bad-bg: #fee2e2;
+  --brand-soft: #eef2ff;
+  --brand-ink: #3730a3;
+
+  /* Desktop aliases (existing class names) */
+  --text: var(--ink);
+  --border: var(--line);
+  --bg-elevated: var(--surface);
+  --bg-soft: #f1f5f9;
+  --accent: var(--brand);
+  --accent-2: var(--brand2);
+  --success: var(--ok);
   --warning: #f59e0b;
   --danger: #f43f5e;
-  --radius: 12px;
-  --font-display: 'Avenir Next', 'Segoe UI Semibold', 'Helvetica Neue', sans-serif;
-  --font: 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
-  --gradient-brand: linear-gradient(135deg, var(--indigo), var(--violet));
+  --radius: 14px;
+  --font: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-display: var(--font);
+  --gradient-brand: linear-gradient(135deg, var(--brand), var(--brand2));
+  --accent-bar: linear-gradient(90deg, var(--brand), var(--brand2));
+  --shadow-soft: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
 * {
@@ -32,11 +52,10 @@ body,
 
 body {
   font-family: var(--font);
-  color: var(--text);
-  background:
-    radial-gradient(1000px 520px at 8% -8%, rgba(79, 70, 229, 0.35) 0%, transparent 55%),
-    radial-gradient(900px 480px at 100% 0%, rgba(124, 58, 237, 0.28) 0%, transparent 50%),
-    var(--bg);
+  color: var(--ink);
+  background: var(--bg);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 button,
@@ -49,11 +68,18 @@ textarea {
 textarea {
   width: 100%;
   padding: 0.55rem 0.7rem;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
+  border-radius: 9px;
+  border: 1px solid #cbd5e1;
+  background: var(--surface);
+  color: var(--ink);
   resize: vertical;
+}
+
+code {
+  background: var(--bg-soft);
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 0.92em;
 }
 
 .source-toggles {
@@ -67,25 +93,45 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  color: var(--text);
+  color: var(--ink);
   font-size: 0.9rem;
 }
 
+/* —— Shell —— */
+.accent-bar {
+  height: 3px;
+  background: var(--accent-bar);
+  flex: none;
+}
+
 .app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.app-shell {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-columns: 220px 1fr;
+  grid-template-rows: 3px 1fr;
   height: 100%;
 }
 
-.topbar {
+.app-shell > .accent-bar {
+  grid-column: 1 / -1;
+}
+
+.sidebar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
-  backdrop-filter: blur(10px);
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 14px 12px 16px;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+  min-height: 0;
+  overflow: auto;
 }
 
 .brand {
@@ -94,13 +140,19 @@ textarea {
   gap: 0.75rem;
 }
 
+.brand-sidebar {
+  padding: 4px 6px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 4px;
+}
+
 .brand-mark {
   position: relative;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   background: var(--gradient-brand);
-  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.35);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.28);
   flex-shrink: 0;
 }
 
@@ -112,7 +164,7 @@ textarea {
   place-items: center;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: 0.95rem;
   color: #fff;
   letter-spacing: -0.04em;
 }
@@ -120,17 +172,88 @@ textarea {
 .brand h1 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  line-height: 1.25;
+  max-width: 11.5rem;
 }
 
 .brand span {
   display: block;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
+  margin-top: 1px;
 }
 
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex: 1;
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-heading {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0 8px 4px;
+}
+
+.nav-link {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.nav-link:hover {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.nav-link.active {
+  color: var(--brand-ink);
+  background: var(--brand-soft);
+}
+
+.sidebar-foot {
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.topbar-simple .brand h1 {
+  font-size: 1rem;
+  max-width: none;
+}
+
+/* Legacy pill tabs (unused in shell; keep for any leftover) */
 .tabs {
   display: flex;
   gap: 0.35rem;
@@ -145,22 +268,26 @@ textarea {
   padding: 0.45rem 0.85rem;
   border-radius: 999px;
   cursor: pointer;
+  font-weight: 600;
+  font-size: 0.82rem;
 }
 
 .tab:hover {
-  color: var(--text);
-  background: var(--bg-soft);
+  color: var(--brand);
+  background: var(--brand-soft);
 }
 
 .tab.active {
-  color: var(--text);
-  background: var(--bg-soft);
-  border-color: var(--border);
+  color: var(--brand-ink);
+  background: var(--brand-soft);
+  border-color: #c7d2fe;
 }
 
 .content {
-  padding: 1.5rem;
+  padding: 1.25rem 1.5rem 2.5rem;
   overflow: auto;
+  min-height: 0;
+  background: var(--bg);
 }
 
 .panel {
@@ -170,8 +297,9 @@ textarea {
 
 .panel h2 {
   margin: 0 0 0.35rem;
-  font-size: 1.35rem;
-  letter-spacing: -0.02em;
+  font-size: 1.2rem;
+  letter-spacing: -0.01em;
+  color: #1e1b4b;
 }
 
 .lede {
@@ -188,15 +316,17 @@ textarea {
 .field {
   display: grid;
   gap: 0.4rem;
-  padding: 1rem;
-  border: 1px solid var(--border);
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--bg-elevated);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .field label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
+  color: #475569;
 }
 
 .field .hint {
@@ -213,9 +343,9 @@ textarea {
   max-width: 100%;
   padding: 0.45rem 0.65rem;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
+  border: 1px solid #cbd5e1;
+  background: var(--surface);
+  color: var(--ink);
 }
 
 .actions {
@@ -227,23 +357,32 @@ textarea {
 
 .btn {
   appearance: none;
-  border: 1px solid var(--border);
-  background: var(--bg-soft);
-  color: var(--text);
+  border: 1px solid #cbd5e1;
+  background: var(--surface);
+  color: var(--ink);
   padding: 0.55rem 0.95rem;
   border-radius: 8px;
   cursor: pointer;
+  font-weight: 600;
+  font-size: 0.86rem;
 }
 
 .btn:hover {
-  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  border-color: var(--brand);
+  color: var(--brand-ink);
 }
 
 .btn.primary {
   background: var(--gradient-brand);
   border-color: transparent;
   color: #fff;
-  font-weight: 600;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+}
+
+.btn.primary:hover {
+  opacity: 0.95;
+  color: #fff;
 }
 
 .btn:disabled {
@@ -254,9 +393,9 @@ textarea {
 .status {
   margin-top: 1rem;
   padding: 0.85rem 1rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
   color: var(--muted);
   font-size: 0.9rem;
   white-space: pre-wrap;
@@ -270,13 +409,15 @@ textarea {
 .module {
   padding: 1rem;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .module h3 {
   margin: 0 0 0.25rem;
   font-size: 1rem;
+  color: #1e1b4b;
 }
 
 .module p {
@@ -291,8 +432,8 @@ textarea {
   margin-left: 0.4rem;
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
-  background: var(--bg-soft);
-  color: var(--warning);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
   font-size: 0.7rem;
   vertical-align: middle;
 }
@@ -303,20 +444,23 @@ textarea {
   gap: 0.35rem;
   padding: 0.25rem 0.65rem;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
   font-size: 0.78rem;
   color: var(--muted);
+  font-weight: 600;
 }
 
 .pill.ok {
-  color: var(--success);
-  border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+  color: var(--ok);
+  background: var(--ok-bg);
+  border-color: #bbf7d0;
 }
 
 .pill.bad {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  color: var(--bad);
+  background: var(--bad-bg);
+  border-color: #fecaca;
 }
 
 .dot {
@@ -334,24 +478,27 @@ textarea {
 
 .onboarding-card {
   width: min(640px, 100%);
-  padding: 2rem;
-  border-radius: 18px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  padding: 1.75rem 1.85rem;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .onboarding-card .mark {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   background: var(--gradient-brand);
   margin-bottom: 1rem;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
 }
 
 .onboarding-card h2 {
   margin: 0 0 0.5rem;
-  font-size: 1.6rem;
+  font-size: 1.45rem;
+  color: #1e1b4b;
+  letter-spacing: -0.01em;
 }
 
 .onboarding-steps {
@@ -367,7 +514,7 @@ textarea {
 }
 
 .onboarding-steps strong {
-  color: var(--text);
+  color: var(--ink);
 }
 
 .choice-stack {
@@ -397,20 +544,21 @@ textarea {
 }
 
 .btn.primary .choice-hint {
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .empty-state {
   margin: 0.85rem 0 0.25rem;
   padding: 1rem 1.1rem;
   border-radius: var(--radius);
-  border: 1px dashed color-mix(in srgb, var(--accent) 35%, var(--border));
-  background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
+  border: 1px dashed #c7d2fe;
+  background: #f8f9ff;
 }
 
 .empty-state h3 {
   margin: 0 0 0.35rem;
   font-size: 1rem;
+  color: #1e1b4b;
 }
 
 .empty-state p {
@@ -441,9 +589,11 @@ textarea {
 .skill {
   padding: 0.25rem 0.55rem;
   border-radius: 999px;
-  background: var(--bg-soft);
-  border: 1px solid var(--border);
+  background: var(--brand-soft);
+  border: 1px solid #c7d2fe;
+  color: var(--brand-ink);
   font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .profile-grid {
@@ -455,8 +605,9 @@ textarea {
 .kv {
   padding: 0.85rem 1rem;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .kv .k {
@@ -486,6 +637,7 @@ textarea {
 .job-list h3 {
   margin: 1rem 0 0.25rem;
   font-size: 0.95rem;
+  color: #1e1b4b;
 }
 
 .job-list .pill {
@@ -505,13 +657,15 @@ textarea {
 .inbox-card {
   padding: 1rem 1.1rem;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .inbox-card h3 {
   margin: 0 0 0.2rem;
   font-size: 1rem;
+  color: #1e1b4b;
 }
 
 .inbox-card p {
@@ -541,7 +695,7 @@ textarea {
 }
 
 .warn-text {
-  color: var(--warning) !important;
+  color: var(--warn) !important;
 }
 
 .split-cols {
@@ -554,6 +708,7 @@ textarea {
 .split-cols h3 {
   margin: 0 0 0.5rem;
   font-size: 0.95rem;
+  color: #1e1b4b;
 }
 
 .stage-filters {
@@ -579,9 +734,9 @@ textarea {
   min-width: 12rem;
   padding: 0.4rem 0.55rem;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
+  border: 1px solid #cbd5e1;
+  background: var(--surface);
+  color: var(--ink);
 }
 
 .notes-edit {
@@ -607,9 +762,9 @@ textarea {
   margin-top: 0.65rem;
   padding: 0.65rem 0.75rem;
   border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--ink);
   font-size: 0.88rem;
   line-height: 1.45;
 }
@@ -618,7 +773,7 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  color: var(--text);
+  color: var(--ink);
   font-size: 0.9rem;
   font-weight: 500;
 }
@@ -627,14 +782,9 @@ textarea {
   margin: 0 0 1rem;
   padding: 1rem 1.15rem;
   border-radius: var(--radius);
-  border: 1px solid color-mix(in srgb, var(--warning) 55%, var(--border));
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--warning) 16%, transparent),
-      color-mix(in srgb, var(--danger) 10%, transparent)
-    ),
-    var(--bg-elevated);
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #713f12;
   animation: pause-in 280ms ease-out;
 }
 
@@ -660,18 +810,19 @@ textarea {
 .pause-banner h3 {
   margin: 0 0 0.35rem;
   font-size: 1.05rem;
+  color: #713f12;
 }
 
 .pause-banner p {
   margin: 0;
-  color: var(--muted);
+  color: #854d0e;
   font-size: 0.9rem;
 }
 
 .pause-steps {
   margin: 0.65rem 0 0;
   padding-left: 1.2rem;
-  color: var(--text);
+  color: #713f12;
   font-size: 0.88rem;
 }
 
@@ -685,7 +836,7 @@ textarea {
 
 .refine-panel {
   padding-top: 0.25rem;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
 }
 
 .refine-split {
@@ -697,4 +848,40 @@ textarea {
 
 .refine-split .hint {
   margin: 0.35rem 0 0;
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: 3px auto 1fr;
+  }
+
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    max-height: none;
+  }
+
+  .side-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+  }
+
+  .nav-group {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .nav-heading {
+    width: 100%;
+    padding-top: 0.35rem;
+  }
+
+  .brand h1 {
+    max-width: none;
+    font-size: 0.95rem;
+  }
 }

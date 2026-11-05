@@ -24,6 +24,35 @@ type Tab =
   | 'preferences'
   | 'modules'
 
+type NavItem = { id: Tab; label: string }
+type NavGroup = { heading: string; items: NavItem[] }
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    heading: 'Automation',
+    items: [
+      { id: 'home', label: 'Pipeline' },
+      { id: 'matches', label: 'Matches' },
+      { id: 'apply', label: 'Apply' }
+    ]
+  },
+  {
+    heading: 'Assistant',
+    items: [
+      { id: 'ai', label: 'Resume' },
+      { id: 'tracker', label: 'Tracker' },
+      { id: 'profile', label: 'Profile' }
+    ]
+  },
+  {
+    heading: 'Setup',
+    items: [
+      { id: 'preferences', label: 'Settings' },
+      { id: 'modules', label: 'Advanced' }
+    ]
+  }
+]
+
 export default function App() {
   const [tab, setTab] = useState<Tab>('home')
   const [prefs, setPrefs] = useState<AppPreferences>(DEFAULT_PREFERENCES)
@@ -57,6 +86,7 @@ export default function App() {
   if (!ready) {
     return (
       <div className="app">
+        <div className="accent-bar" aria-hidden />
         <main className="content">
           <div className="panel">
             <p className="lede">Loading…</p>
@@ -69,12 +99,13 @@ export default function App() {
   if (!prefs.onboardingComplete) {
     return (
       <div className="app">
-        <header className="topbar">
+        <div className="accent-bar" aria-hidden />
+        <header className="topbar topbar-simple">
           <div className="brand">
             <div className="brand-mark" aria-hidden />
             <div>
-              <h1>Job Search Assistant</h1>
-              <span>Local AI · Mac &amp; Windows</span>
+              <h1>AI Job Application Assistant</h1>
+              <span>Desktop · set up once</span>
             </div>
           </div>
         </header>
@@ -90,47 +121,45 @@ export default function App() {
     )
   }
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'home', label: 'Pipeline' },
-    { id: 'matches', label: 'Matches' },
-    { id: 'apply', label: 'Apply' },
-    { id: 'ai', label: 'AI' },
-    { id: 'tracker', label: 'Tracker' },
-    { id: 'profile', label: 'Profile' },
-    { id: 'preferences', label: 'Preferences' },
-    { id: 'modules', label: 'Modules' }
-  ]
-
   return (
-    <div className="app">
-      <header className="topbar">
-        <div className="brand">
+    <div className="app app-shell">
+      <div className="accent-bar" aria-hidden />
+      <aside className="sidebar" aria-label="Primary">
+        <div className="brand brand-sidebar">
           <div className="brand-mark" aria-hidden />
           <div>
-            <h1>Job Search Assistant</h1>
-            <span>Local search · match · apply</span>
+            <h1>AI Job Application Assistant</h1>
+            <span>Desktop</span>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+
+        <nav className="side-nav">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.heading} className="nav-group">
+              <div className="nav-heading">{group.heading}</div>
+              {group.items.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`nav-link ${tab === t.id ? 'active' : ''}`}
+                  onClick={() => setTab(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div className="sidebar-foot">
           {ollama ? (
             <span className={`pill ${ollama.reachable ? 'ok' : 'bad'}`} title={ollama.url}>
               <span className="dot" />
               Ollama {ollama.reachable ? 'up' : 'down'}
             </span>
           ) : null}
-          <nav className="tabs" aria-label="Primary">
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                className={`tab ${tab === t.id ? 'active' : ''}`}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
         </div>
-      </header>
+      </aside>
 
       <main className="content">
         {tab === 'home' ? (
