@@ -210,7 +210,8 @@ function dedupeJobs(jobs: JobListing[]): JobListing[] {
   const out: JobListing[] = []
   for (const job of jobs) {
     if (seen.has(job.id)) continue
-    // Soft URL dedupe across sources
+    // Soft URL dedupe across sources — keep discriminating job ids in the key
+    // (Indeed /viewjob?jk=… shares one pathname; stripping query collapsed fixtures).
     const urlKey = normalizeUrlKey(job.url)
     if (urlKey && seen.has(`url:${urlKey}`)) continue
     seen.add(job.id)
@@ -220,10 +221,22 @@ function dedupeJobs(jobs: JobListing[]): JobListing[] {
   return out
 }
 
-function normalizeUrlKey(url: string): string {
+/** Host + path + job-id query params when present (jk / vjk / currentJobId / …). */
+export function normalizeUrlKey(url: string): string {
   try {
     const u = new URL(url)
-    return `${u.hostname}${u.pathname}`.toLowerCase().replace(/\/$/, '')
+    const base = `${u.hostname}${u.pathname}`.toLowerCase().replace(/\/$/, '')
+    const id =
+      u.searchParams.get('jk') ||
+      u.searchParams.get('vjk') ||
+      u.searchParams.get('currentJobId') ||
+      u.searchParams.get('jobId') ||
+      u.searchParams.get('jobid') ||
+      u.searchParams.get('gh_jid') ||
+      ''
+    if (id) return `${base}?id=${id.toLowerCase()}`
+    // LinkedIn /jobs/view/12345 already unique via pathname — keep as-is.
+    return base
   } catch {
     return url.toLowerCase()
   }
