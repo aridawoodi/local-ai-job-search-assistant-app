@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AppPreferences } from '../../shared/preferences'
 import type { ApplyFieldReport, ApplyResult, JobListing } from '../../shared/types'
 import EmptyState from './EmptyState'
@@ -47,6 +47,27 @@ function fieldDraftValue(f: ApplyFieldReport): string {
   if (f.value != null) return f.value
   if (f.status === 'filled' && f.detail) return f.detail
   return ''
+}
+
+/** Prefer live HTTPS posting URL; fall back to fill URL. Never hide a usable link. */
+function displayPostingUrl(result: ApplyResult, job?: JobListing): string {
+  const candidates = [result.postingUrl, job?.url, result.url]
+  for (const c of candidates) {
+    if (c && /^https?:\/\//i.test(c)) return c
+  }
+  for (const c of candidates) {
+    if (c) return c
+  }
+  return ''
+}
+
+function shortHost(url: string): string {
+  try {
+    if (url.startsWith('file://')) return 'local practice form'
+    return new URL(url).host || url
+  } catch {
+    return url.slice(0, 64)
+  }
 }
 
 function EditableFieldList({
@@ -154,6 +175,32 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
     el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [focusJobId, results])
 
+  /** After Matches Apply lands here, raise the filled browser again (app tab steals focus). */
+  const focusedBrowserFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (!focusJobId) {
+      focusedBrowserFor.current = null
+      return
+    }
+    if (focusedBrowserFor.current === focusJobId) return
+    const result = results.find((r) => r.jobId === focusJobId)
+    if (
+      !result ||
+      (result.status !== 'filled' &&
+        result.status !== 'needs_you' &&
+        result.status !== 'submitted')
+    ) {
+      return
+    }
+    focusedBrowserFor.current = focusJobId
+    const t = window.setTimeout(() => {
+      void window.desktopApi.focusFilledForm(focusJobId).then((r) => {
+        if (r.message) setMsg(r.message)
+      })
+    }, 350)
+    return () => window.clearTimeout(t)
+  }, [focusJobId, results])
+
   /** Extension-style chat: seed once when Matches Apply focuses a filled job. */
   useEffect(() => {
     if (!focusJobId) return
@@ -173,6 +220,7 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
       .filter(({ f }) => f.status === 'needs_you' || f.status === 'missing')
     const filledN = result.fields.filter((f) => f.status === 'filled').length
     const job = jobs.find((j) => j.id === focusJobId)
+    const link = displayPostingUrl(result, job)
     const lines: ChatLine[] = [
       {
         kind: 'bot',
@@ -181,6 +229,19 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
         }. Confirm mode never presses Submit.`
       }
     ]
+    if (result.usedPractice) {
+      lines.push({
+        kind: 'bot',
+        text: link
+          ? `This fill used the local practice form (fixture/demo). Listing URL is still available: ${link}`
+          : 'This fill used the local practice form (fixture/demo listing).'
+      })
+    } else if (link) {
+      lines.push({
+        kind: 'bot',
+        text: `Filled on the live posting (${shortHost(link)}). Review in the automation browser, then Submit on the page.`
+      })
+    }
     if (needs.length) {
       lines.push({
         kind: 'bot',
@@ -198,7 +259,7 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
     } else {
       lines.push({
         kind: 'bot',
-        text: 'Nothing left that needs you — review Filled below, then submit on the page yourself.'
+        text: 'All set here — Review in browser → Submit on the page. Use Open / Focus below to jump to the filled form.'
       })
     }
     setChatJobId(focusJobId)
@@ -401,7 +462,7 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
           : [
               {
                 kind: 'bot' as const,
-                text: 'All Needs you fields answered. Review Filled below — you still press Submit on the page.'
+                text: 'All Needs you fields answered. Review in browser → Submit on the page (Open / Focus below).'
               }
             ])
       ])
@@ -427,9 +488,33 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
         ...prev,
         {
           kind: 'bot',
-          text: 'Okay — remaining Needs you fields stay on the page / list below.'
+          text: 'Okay — finish anything left on the page. Use Show filled form in browser when ready.'
         }
       ])
+  }
+
+  async function focusFilled(jobId: string) {
+    setBusy(true)
+    try {
+      const result = await window.desktopApi.focusFilledForm(jobId)
+      setMsg(result.message)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function openListing(jobId: string) {
+    setBusy(true)
+    try {
+      const result = await window.desktopApi.openJobPosting(jobId)
+      setMsg(result.message)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function draftChatAnswer(label: string) {
@@ -503,12 +588,83 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
 
       {chat.length && chatJobId ? (
         <section className="apply-chat" aria-label="Needs you assistant">
-          <div className="apply-chat-head">
-            <h3>Needs you</h3>
-            <p className="hint">
-              Extension-style refine — answer one field at a time. Submit stays on the page.
-            </p>
-          </div>
+          {(() => {
+            const chatResult = results.find((r) => r.jobId === chatJobId)
+            const chatJob = jobs.find((j) => j.id === chatJobId)
+            const link = chatResult ? displayPostingUrl(chatResult, chatJob) : ''
+            const needsLeft =
+              chatResult?.fields?.filter(
+                (f) => f.status === 'needs_you' || f.status === 'missing'
+              ).length ?? 0
+            return (
+              <>
+                <div className="apply-chat-head">
+                  <h3>{needsLeft > 0 ? 'Needs you' : 'Review & submit'}</h3>
+                  <p className="hint">
+                    {needsLeft > 0
+                      ? 'Answer one field at a time here, then Submit on the page yourself.'
+                      : 'Review in browser → Submit on the page. Confirm mode never presses Submit.'}
+                  </p>
+                </div>
+                <div className="apply-posting-card">
+                  <div className="apply-posting-title">
+                    {chatJob?.title || chatJobId}
+                    {chatJob?.company ? (
+                      <span className="hint"> · {chatJob.company}</span>
+                    ) : null}
+                  </div>
+                  {link ? (
+                    <a
+                      className="apply-posting-link"
+                      href={link}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={link}
+                    >
+                      {shortHost(link)}
+                      <span className="apply-posting-url-full">{link}</span>
+                    </a>
+                  ) : (
+                    <p className="hint">No posting URL on this result yet.</p>
+                  )}
+                  {chatResult?.usedPractice ? (
+                    <p className="hint apply-practice-note">
+                      Filled on the local practice form (fixture/demo). Live jobs always keep their
+                      real URL above.
+                    </p>
+                  ) : null}
+                  <div className="actions" style={{ marginTop: '0.55rem' }}>
+                    <button
+                      type="button"
+                      className="btn primary"
+                      disabled={busy}
+                      onClick={() => void focusFilled(chatJobId)}
+                    >
+                      Show filled form in browser
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={busy}
+                      onClick={() => void focusFilled(chatJobId)}
+                    >
+                      Focus browser
+                    </button>
+                    {link && /^https?:\/\//i.test(link) ? (
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={busy}
+                        onClick={() => void openListing(chatJobId)}
+                      >
+                        Open posting
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </>
+            )
+          })()}
           <div className="apply-chat-log">
             {chat.map((line, i) => {
               if (line.kind === 'bot') {
@@ -648,6 +804,7 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
             <div className="card-list">
               {pending.map((r) => {
                 const job = jobs.find((j) => j.id === r.jobId)
+                const link = displayPostingUrl(r, job)
                 return (
                   <article
                     key={r.jobId}
@@ -659,6 +816,17 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
                       {job?.company || ''}
                       {job?.location ? ` · ${job.location}` : ''}
                     </p>
+                    {link ? (
+                      <a
+                        className="apply-posting-link"
+                        href={link}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={link}
+                      >
+                        {shortHost(link)}
+                      </a>
+                    ) : null}
                     <p className="hint">{r.message}</p>
                     <div className="actions">
                       <button
@@ -667,6 +835,14 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
                         onClick={() => void confirmSelected([r.jobId])}
                       >
                         Confirm &amp; fill
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={busy}
+                        onClick={() => void openListing(r.jobId)}
+                      >
+                        Open posting
                       </button>
                     </div>
                   </article>
@@ -689,6 +865,7 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
                 const job = jobs.find((j) => j.id === r.jobId)
                 const submitted = r.submitted || r.status === 'submitted'
                 const groups = groupFields(r.fields)
+                const link = displayPostingUrl(r, job)
                 return (
                   <article
                     key={r.jobId}
@@ -709,11 +886,29 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
                         {r.submitConfirmed ? ' · confirmed' : ''}
                       </span>
                     </div>
+                    {link ? (
+                      <a
+                        className="apply-posting-link"
+                        href={link}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={link}
+                      >
+                        {shortHost(link)}
+                      </a>
+                    ) : (
+                      <p className="hint">No posting URL available for this fill.</p>
+                    )}
+                    {r.usedPractice ? (
+                      <p className="hint apply-practice-note">
+                        Practice form fill (fixture/demo) — not a live ATS page.
+                      </p>
+                    ) : null}
                     <p className="hint">
                       Filled {r.filledCount ?? groups.filled.length}
                       {r.needsYouCount || groups.needsYou.length
                         ? ` · Needs you ${r.needsYouCount ?? groups.needsYou.length}`
-                        : ''}
+                        : ' · Review in browser → Submit on the page'}
                       {submitted
                         ? r.submitConfirmed
                           ? ' · submit tracked'
@@ -721,6 +916,24 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
                         : ' · no auto-submit'}
                       {r.stepsAdvanced ? ` · ${r.stepsAdvanced} step(s)` : ''}
                     </p>
+                    <div className="actions" style={{ marginBottom: '0.65rem' }}>
+                      <button
+                        type="button"
+                        className="btn primary"
+                        disabled={busy}
+                        onClick={() => void focusFilled(r.jobId)}
+                      >
+                        Show filled form in browser
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={busy}
+                        onClick={() => void focusFilled(r.jobId)}
+                      >
+                        Focus browser
+                      </button>
+                    </div>
                     <EditableFieldList
                       heading="Needs you"
                       items={groups.needsYou}

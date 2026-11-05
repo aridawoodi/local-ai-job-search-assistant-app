@@ -74,6 +74,8 @@ export async function applyToJobs(
         message:
           'Queued for confirmation (apply safety = confirm). Approve to autofill — Submit stays gated.',
         url: job.url,
+        postingUrl: job.url,
+        usedPractice: isDemoOrFixtureJob(job),
         submitted: false
       })
       continue
@@ -85,6 +87,8 @@ export async function applyToJobs(
         status: 'pending_confirm',
         message: 'Still waiting for confirmation. Use Confirm apply to autofill this job.',
         url: job.url,
+        postingUrl: job.url,
+        usedPractice: isDemoOrFixtureJob(job),
         submitted: false
       })
       continue
@@ -96,13 +100,16 @@ export async function applyToJobs(
         status: 'skipped',
         message: `Daily action cap reached (${prefs.maxActionsPerDay}).`,
         url: job.url,
+        postingUrl: job.url,
+        usedPractice: isDemoOrFixtureJob(job),
         submitted: false
       })
       continue
     }
 
     try {
-      const targetUrl = resolveApplyUrl(job, ctx)
+      const resolved = resolveOpenPostingUrl(job, ctx)
+      const targetUrl = resolved.url
       await ctx.page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
       await new Promise((r) => setTimeout(r, 800))
 
@@ -171,6 +178,13 @@ export async function applyToJobs(
         message = `${message}${submitMsg}`
       }
 
+      if (resolved.usedPractice) {
+        message = `${message} Filled on the local practice form (fixture/demo listing — not a live ATS).`.trim()
+      }
+
+      // Leave the automation browser on the filled page (current URL may be an apply modal).
+      const filledPageUrl = ctx.page.url() || targetUrl
+
       const status = submitted
         ? ('submitted' as const)
         : !formFound
@@ -184,7 +198,9 @@ export async function applyToJobs(
         status,
         message:
           `${prefs.applySafety === 'unattended' ? 'Unattended' : 'Confirmed'}: ${message}`,
-        url: targetUrl,
+        url: filledPageUrl,
+        postingUrl: job.url,
+        usedPractice: resolved.usedPractice,
         adapter,
         filledCount,
         needsYouCount,
@@ -200,6 +216,8 @@ export async function applyToJobs(
         status: 'failed',
         message: err instanceof Error ? err.message : String(err),
         url: job.url,
+        postingUrl: job.url,
+        usedPractice: isDemoOrFixtureJob(job),
         submitted: false
       })
     }
@@ -217,16 +235,9 @@ export async function confirmAndFill(
   return applyToJobs(jobIds, prefs, { ...ctx, confirmed: true })
 }
 
+/** @deprecated Prefer resolveOpenPostingUrl — kept for callers that only need the string. */
 export function resolveApplyUrl(job: JobListing, ctx: ApplyContext): string {
-  if (isDemoOrFixtureJob(job)) {
-    const keyed = pickPracticeFixture(job, ctx)
-    if (keyed) return `file://${keyed}`
-  }
-  if (/^https?:\/\//i.test(job.url)) return job.url
-
-  const practice = defaultPracticeFormPath(ctx.appPath, ctx.cwd)
-  if (practice) return `file://${practice}`
-  return job.url
+  return resolveOpenPostingUrl(job, ctx).url
 }
 
 type FixturePaths = Pick<ApplyContext, 'appPath' | 'cwd'>

@@ -50,7 +50,12 @@ export interface ApplyResult {
   jobId: string
   status: ApplyStatus
   message: string
+  /** URL the automation browser filled (live posting or local practice file). */
   url?: string
+  /** Original listing URL from search — always prefer this for the Apply tab link. */
+  postingUrl?: string
+  /** True when fill ran on a local practice fixture (demo/fixture jobs only). */
+  usedPractice?: boolean
   adapter?: string
   filledCount?: number
   needsYouCount?: number

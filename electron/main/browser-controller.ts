@@ -3,6 +3,8 @@
  * persistent profile under Electron userData so the user can log in once.
  * Never imported from the renderer.
  */
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { mkdirSync, existsSync } from 'fs'
 import { join } from 'path'
 import {
@@ -11,6 +13,8 @@ import {
   type Page,
   type BrowserType
 } from 'playwright'
+
+const execFileAsync = promisify(execFile)
 import type { BrowserPreference } from '../../src/shared/preferences'
 import type {
   BrowserRuntimeStatus,
@@ -299,6 +303,53 @@ export class BrowserController {
         pauseKind: 'blocked',
         message: err instanceof Error ? err.message : String(err),
         url
+      }
+    }
+  }
+
+  /**
+   * Keep the automation browser on the filled posting and raise it above the app.
+   * Playwright bringToFront covers tabs; macOS activate covers the OS window.
+   */
+  async bringToFront(): Promise<{ ok: boolean; message: string; url?: string }> {
+    if (!this.page || this.page.isClosed()) {
+      return { ok: false, message: 'Automation browser is not open.' }
+    }
+    try {
+      await this.page.bringToFront()
+      try {
+        await this.page.evaluate(() => {
+          try {
+            window.focus()
+          } catch {
+            /* ignore */
+          }
+        })
+      } catch {
+        /* page may be mid-navigation */
+      }
+      if (process.platform === 'darwin') {
+        const appName =
+          this.channel === 'msedge' ? 'Microsoft Edge' : 'Google Chrome'
+        try {
+          await execFileAsync('osascript', [
+            '-e',
+            `tell application "${appName}" to activate`
+          ])
+        } catch {
+          /* Chrome/Edge may be titled differently — tab focus still applied */
+        }
+      }
+      return {
+        ok: true,
+        message: 'Focused the filled form in the automation browser.',
+        url: this.page.url()
+      }
+    } catch (err) {
+      return {
+        ok: false,
+        message: err instanceof Error ? err.message : String(err),
+        url: this.page.url()
       }
     }
   }

@@ -254,6 +254,22 @@ async function applyInternal(jobIds: string[], confirmed: boolean) {
   lastApplyResults = results
   const written = persistApplyToTracker(results)
 
+  // Keep automation browser on the filled posting and raise it (extension-like).
+  const didFill = results.some(
+    (r) =>
+      r.status === 'filled' ||
+      r.status === 'needs_you' ||
+      r.status === 'submitted' ||
+      r.submitted
+  )
+  if (didFill) {
+    try {
+      await browserController.bringToFront()
+    } catch {
+      /* non-fatal */
+    }
+  }
+
   const filled = results.filter((r) => r.status === 'filled' || r.status === 'needs_you').length
   const pending = results.filter((r) => r.status === 'pending_confirm').length
   const submitted = results.filter((r) => r.submitted).length
@@ -882,6 +898,7 @@ function registerIpc(): void {
     try {
       const page = await browserController.getPage(app.getPath('userData'), prefs.browser)
       await page.goto(resolved.url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+      await browserController.bringToFront()
       const host = (() => {
         try {
           return new URL(resolved.url).host
@@ -893,6 +910,7 @@ function registerIpc(): void {
         ok: true,
         usedPractice: resolved.usedPractice,
         url: resolved.url,
+        postingUrl: job.url,
         message: resolved.usedPractice
           ? demoPostingReason(job)
           : `Opened real posting in the automation browser (${host}).`
@@ -905,6 +923,7 @@ function registerIpc(): void {
             ok: true,
             usedPractice: resolved.usedPractice,
             url: resolved.url,
+            postingUrl: job.url,
             message: resolved.usedPractice
               ? `${demoPostingReason(job)} (opened in your default browser).`
               : `Opened posting in your default browser (${
@@ -919,6 +938,69 @@ function registerIpc(): void {
         ok: false,
         usedPractice: resolved.usedPractice,
         url: resolved.url,
+        postingUrl: job.url,
+        message: err instanceof Error ? err.message : String(err)
+      }
+    }
+  })
+
+  /**
+   * Focus the automation browser on the already-filled apply page.
+   * Prefer staying on the current filled page; only re-navigate if the tab is gone
+   * or drifted away from the fill target (e.g. about:blank).
+   */
+  ipcMain.handle('apply:focus-filled-form', async (_e, jobId?: string) => {
+    const prefs = loadPreferences()
+    const result = jobId
+      ? lastApplyResults.find((r) => r.jobId === jobId) || lastApplyResults[0]
+      : lastApplyResults[0]
+    const job = jobId
+      ? lastJobs.find((j) => j.id === jobId)
+      : result
+        ? lastJobs.find((j) => j.id === result.jobId)
+        : undefined
+
+    try {
+      const page = await browserController.getPage(app.getPath('userData'), prefs.browser)
+      const current = page.url()
+      const prefer =
+        result?.url ||
+        (job
+          ? resolveOpenPostingUrl(job, {
+              appPath: app.getAppPath(),
+              cwd: process.cwd()
+            }).url
+          : '')
+      const drifted =
+        !current ||
+        current === 'about:blank' ||
+        current.startsWith('chrome://') ||
+        current.startsWith('edge://')
+      if (prefer && drifted) {
+        await page.goto(prefer, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+      }
+      const focus = await browserController.bringToFront()
+      const usedPractice = Boolean(result?.usedPractice)
+      const postingUrl = result?.postingUrl || job?.url || prefer
+      const displayUrl =
+        !usedPractice && postingUrl && /^https?:\/\//i.test(postingUrl)
+          ? postingUrl
+          : prefer || postingUrl || focus.url
+      return {
+        ok: focus.ok,
+        usedPractice,
+        url: focus.url || prefer,
+        postingUrl: displayUrl,
+        message: usedPractice
+          ? `${focus.message} Practice form (fixture) — original listing: ${postingUrl || 'n/a'}.`
+          : focus.message
+      }
+    } catch (err) {
+      return {
+        ok: false,
+        usedPractice: Boolean(result?.usedPractice),
+        url: result?.url,
+        postingUrl: result?.postingUrl || job?.url,
         message: err instanceof Error ? err.message : String(err)
       }
     }

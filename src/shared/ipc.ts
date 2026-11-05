@@ -137,6 +137,18 @@ export interface DesktopApi {
     usedPractice: boolean
     message: string
     url?: string
+    postingUrl?: string
+  }>
+  /**
+   * Raise the automation browser on the filled apply page (extension-like).
+   * Does not auto-Submit.
+   */
+  focusFilledForm: (jobId?: string) => Promise<{
+    ok: boolean
+    usedPractice: boolean
+    message: string
+    url?: string
+    postingUrl?: string
   }>
   /** Persist an inline Apply field edit to profile and/or answer bank. */
   saveFillAnswer: (payload: {
