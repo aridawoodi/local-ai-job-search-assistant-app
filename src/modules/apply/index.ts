@@ -3,6 +3,7 @@ import { join } from 'path'
 import type { Page } from 'playwright'
 import type { AppPreferences } from '../../shared/preferences'
 import type { UserProfile } from '../../shared/profile'
+import { isDemoOrFixtureJob } from '../../shared/job-urls'
 import type { ApplyResult, JobListing } from '../../shared/types'
 import { maskProfileForFill } from '../../shared/field-mask'
 import { fillApplicationPage } from './fill'
@@ -212,13 +213,8 @@ export async function confirmAndFill(
   return applyToJobs(jobIds, prefs, { ...ctx, confirmed: true })
 }
 
-function resolveApplyUrl(job: JobListing, ctx: ApplyContext): string {
-  const demo =
-    /fixture|example\.com|localhost|\/example\//i.test(job.url) ||
-    /fixture/i.test(job.id) ||
-    /example corp/i.test(job.company)
-
-  if (demo || !/^https?:\/\//i.test(job.url)) {
+export function resolveApplyUrl(job: JobListing, ctx: ApplyContext): string {
+  if (isDemoOrFixtureJob(job)) {
     const keyed = pickPracticeFixture(job, ctx)
     if (keyed) return `file://${keyed}`
   }
@@ -229,8 +225,27 @@ function resolveApplyUrl(job: JobListing, ctx: ApplyContext): string {
   return job.url
 }
 
+type FixturePaths = Pick<ApplyContext, 'appPath' | 'cwd'>
+
+/** Same practice routing as fill — used by Open posting for fixture/demo jobs. */
+export function resolveOpenPostingUrl(
+  job: JobListing,
+  ctx: FixturePaths
+): { url: string; usedPractice: boolean } {
+  if (isDemoOrFixtureJob(job)) {
+    const keyed = pickPracticeFixture(job, ctx)
+    if (keyed) return { url: `file://${keyed}`, usedPractice: true }
+    const practice = defaultPracticeFormPath(ctx.appPath, ctx.cwd)
+    if (practice) return { url: `file://${practice}`, usedPractice: true }
+  }
+  if (/^https?:\/\//i.test(job.url)) return { url: job.url, usedPractice: false }
+  const practice = defaultPracticeFormPath(ctx.appPath, ctx.cwd)
+  if (practice) return { url: `file://${practice}`, usedPractice: true }
+  return { url: job.url, usedPractice: false }
+}
+
 /** Choose Workday / Easy Apply / multi-step / generic practice HTML from job hints. */
-export function pickPracticeFixture(job: JobListing, ctx: ApplyContext): string | null {
+export function pickPracticeFixture(job: JobListing, ctx: FixturePaths): string | null {
   const blob = `${job.id} ${job.title} ${job.company} ${job.url} ${job.source}`.toLowerCase()
   const map: [RegExp, string][] = [
     [/workday/, 'workday-basic.html'],
@@ -246,7 +261,7 @@ export function pickPracticeFixture(job: JobListing, ctx: ApplyContext): string 
   return defaultPracticeFormPath(ctx.appPath, ctx.cwd)
 }
 
-function fixturePath(name: string, ctx: ApplyContext): string | null {
+function fixturePath(name: string, ctx: FixturePaths): string | null {
   const candidates = [
     join(ctx.appPath, 'fixtures', name),
     join(ctx.cwd, 'fixtures', name),

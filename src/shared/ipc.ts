@@ -128,6 +128,20 @@ export interface DesktopApi {
   }) => Promise<AiRereadResult>
   getDiagnostics: () => Promise<DesktopDiagnostics>
   openPracticeTour: () => Promise<{ ok: boolean; message: string }>
+  /** Open a job posting; fixture/demo URLs open the practice form instead of a dead link. */
+  openJobPosting: (jobId: string) => Promise<{
+    ok: boolean
+    usedPractice: boolean
+    message: string
+    url?: string
+  }>
+  /** Persist an inline Apply field edit to profile and/or answer bank. */
+  saveFillAnswer: (payload: {
+    label: string
+    key?: string
+    value: string
+    saveForFuture: boolean
+  }) => Promise<{ ok: boolean; message: string; savedProfile: boolean; savedBank: boolean }>
   listAnswerBank: () => Promise<AnswerBankEntry[]>
   upsertAnswerBank: (entries: AnswerBankEntry[]) => Promise<MergeBankResult & { bank: AnswerBankEntry[] }>
   deleteAnswerBank: (index: number) => Promise<AnswerBankEntry[]>

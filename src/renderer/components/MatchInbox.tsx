@@ -6,6 +6,8 @@ import EmptyState from './EmptyState'
 interface Props {
   prefs: AppPreferences
   onImproveMatch?: (jobId: string) => void
+  /** After queueing Fill, parent should switch to Apply. */
+  onFillQueued?: (jobId: string) => void
 }
 
 function scoreTone(score: number): string {
@@ -34,7 +36,7 @@ function ScoreRing({ score }: { score: number }) {
   )
 }
 
-export default function MatchInbox({ prefs, onImproveMatch }: Props) {
+export default function MatchInbox({ prefs, onImproveMatch, onFillQueued }: Props) {
   const [jobs, setJobs] = useState<JobListing[]>([])
   const [matches, setMatches] = useState<MatchResult[]>([])
   const [busy, setBusy] = useState(false)
@@ -118,11 +120,25 @@ export default function MatchInbox({ prefs, onImproveMatch }: Props) {
     }
   }
 
+  async function openPosting(jobId: string) {
+    setBusy(true)
+    try {
+      const result = await window.desktopApi.openJobPosting(jobId)
+      setMsg(result.message)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function queueApply(jobId: string) {
     setBusy(true)
     try {
       const results = await window.desktopApi.runApply([jobId])
-      setMsg(results.map((r) => `${r.status}: ${r.message}`).join('\n'))
+      const summary = results.map((r) => `${r.status}: ${r.message}`).join('\n')
+      setMsg(summary)
+      onFillQueued?.(jobId)
     } catch (err) {
       setMsg(err instanceof Error ? err.message : String(err))
     } finally {
@@ -242,9 +258,14 @@ export default function MatchInbox({ prefs, onImproveMatch }: Props) {
                       </div>
                     ) : null}
                     <div className="actions" style={{ marginTop: '0.75rem' }}>
-                      <a className="btn" href={job.url} target="_blank" rel="noreferrer">
+                      <button
+                        className="btn"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void openPosting(job.id)}
+                      >
                         Open posting
-                      </a>
+                      </button>
                       <button
                         className="btn"
                         type="button"
@@ -255,6 +276,7 @@ export default function MatchInbox({ prefs, onImproveMatch }: Props) {
                       </button>
                       <button
                         className="btn primary"
+                        type="button"
                         disabled={busy}
                         onClick={() => void queueApply(job.id)}
                       >

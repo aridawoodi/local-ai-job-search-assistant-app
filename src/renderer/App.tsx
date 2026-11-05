@@ -66,6 +66,7 @@ export default function App() {
   const [diag, setDiag] = useState<DesktopDiagnostics | null>(null)
   const [ready, setReady] = useState(false)
   const [resumeJobId, setResumeJobId] = useState<string | undefined>()
+  const [applyFocusJobId, setApplyFocusJobId] = useState<string | undefined>()
 
   const reloadProfile = useCallback(async () => {
     const [profile, d] = await Promise.all([
@@ -195,9 +196,13 @@ export default function App() {
               setResumeJobId(jobId)
               setTab('ai')
             }}
+            onFillQueued={(jobId) => {
+              setApplyFocusJobId(jobId)
+              setTab('apply')
+            }}
           />
         ) : tab === 'apply' ? (
-          <ApplyQueue prefs={prefs} />
+          <ApplyQueue prefs={prefs} focusJobId={applyFocusJobId} />
         ) : tab === 'ai' ? (
           <AiAssistPanel prefs={prefs} initialJobId={resumeJobId} />
         ) : tab === 'tracker' ? (
