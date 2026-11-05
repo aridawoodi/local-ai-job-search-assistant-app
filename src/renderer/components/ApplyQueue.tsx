@@ -201,11 +201,18 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
     return () => window.clearTimeout(t)
   }, [focusJobId, results])
 
-  /** Extension-style chat: seed once when Matches Apply focuses a filled job. */
+  /** Extension-style chat: seed when Matches Apply focuses a fill, or when a filled result lands. */
   useEffect(() => {
-    if (!focusJobId) return
-    if (chatJobId === focusJobId) return
-    const result = results.find((r) => r.jobId === focusJobId)
+    const targetId =
+      focusJobId ||
+      results.find(
+        (r) =>
+          (r.status === 'filled' || r.status === 'needs_you' || r.status === 'submitted') &&
+          r.fields?.length
+      )?.jobId
+    if (!targetId) return
+    if (chatJobId === targetId) return
+    const result = results.find((r) => r.jobId === targetId)
     if (!result?.fields?.length) return
     if (
       result.status !== 'filled' &&
@@ -219,7 +226,7 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
       .map((f, index) => ({ f, index }))
       .filter(({ f }) => f.status === 'needs_you' || f.status === 'missing')
     const filledN = result.fields.filter((f) => f.status === 'filled').length
-    const job = jobs.find((j) => j.id === focusJobId)
+    const job = jobs.find((j) => j.id === targetId)
     const link = displayPostingUrl(result, job)
     const lines: ChatLine[] = [
       {
@@ -259,10 +266,10 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
     } else {
       lines.push({
         kind: 'bot',
-        text: 'All set here — Review in browser → Submit on the page. Use Open / Focus below to jump to the filled form.'
+        text: 'All set here — Review in browser → Submit on the page. Use Open / Focus above to jump to the filled form.'
       })
     }
-    setChatJobId(focusJobId)
+    setChatJobId(targetId)
     setChat(lines)
     setChatAnswer('')
   }, [focusJobId, results, jobs, chatJobId])
@@ -556,6 +563,20 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
     [chat]
   )
 
+  /** Always surface posting link + Focus for the focused/latest fill — never a dead-end with no URL. */
+  const spotlightJobId = focusJobId || chatJobId || filled[0]?.jobId
+  const spotlightResult = spotlightJobId
+    ? results.find((r) => r.jobId === spotlightJobId)
+    : undefined
+  const spotlightJob = spotlightJobId ? jobs.find((j) => j.id === spotlightJobId) : undefined
+  const spotlightLink = spotlightResult
+    ? displayPostingUrl(spotlightResult, spotlightJob)
+    : spotlightJob?.url || ''
+  const spotlightNeeds =
+    spotlightResult?.fields?.filter(
+      (f) => f.status === 'needs_you' || f.status === 'missing'
+    ).length ?? spotlightResult?.needsYouCount ?? 0
+
   return (
     <div className="panel wide">
       <h2>Apply</h2>
@@ -586,85 +607,85 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
 
       {msg ? <p className="hint" style={{ marginTop: '0.75rem' }}>{msg}</p> : null}
 
+      {spotlightResult &&
+      (spotlightResult.status === 'filled' ||
+        spotlightResult.status === 'needs_you' ||
+        spotlightResult.status === 'submitted' ||
+        spotlightResult.submitted) ? (
+        <section className="apply-posting-card apply-spotlight" aria-label="Filled posting">
+          <div className="apply-chat-head">
+            <h3>{spotlightNeeds > 0 ? 'Needs you' : 'Review & submit'}</h3>
+            <p className="hint">
+              {spotlightNeeds > 0
+                ? 'Finish answers below, then Submit on the page yourself.'
+                : 'Review in browser → Submit on the page. Confirm mode never presses Submit.'}
+            </p>
+          </div>
+          <div className="apply-posting-title">
+            {spotlightJob?.title || spotlightJobId}
+            {spotlightJob?.company ? (
+              <span className="hint"> · {spotlightJob.company}</span>
+            ) : null}
+          </div>
+          {spotlightLink ? (
+            <a
+              className="apply-posting-link"
+              href={spotlightLink}
+              target="_blank"
+              rel="noreferrer"
+              title={spotlightLink}
+            >
+              {shortHost(spotlightLink)}
+              <span className="apply-posting-url-full">{spotlightLink}</span>
+            </a>
+          ) : (
+            <p className="hint">No posting URL on this result yet.</p>
+          )}
+          {spotlightResult.usedPractice ? (
+            <p className="hint apply-practice-note">
+              Filled on the local practice form (fixture/demo). Live jobs always keep their real URL
+              above.
+            </p>
+          ) : null}
+          <div className="actions" style={{ marginTop: '0.55rem' }}>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={busy || !spotlightJobId}
+              onClick={() => spotlightJobId && void focusFilled(spotlightJobId)}
+            >
+              Show filled form in browser
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy || !spotlightJobId}
+              onClick={() => spotlightJobId && void focusFilled(spotlightJobId)}
+            >
+              Focus browser
+            </button>
+            {spotlightLink && /^https?:\/\//i.test(spotlightLink) && spotlightJobId ? (
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() => void openListing(spotlightJobId)}
+              >
+                Open posting
+              </button>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       {chat.length && chatJobId ? (
         <section className="apply-chat" aria-label="Needs you assistant">
-          {(() => {
-            const chatResult = results.find((r) => r.jobId === chatJobId)
-            const chatJob = jobs.find((j) => j.id === chatJobId)
-            const link = chatResult ? displayPostingUrl(chatResult, chatJob) : ''
-            const needsLeft =
-              chatResult?.fields?.filter(
-                (f) => f.status === 'needs_you' || f.status === 'missing'
-              ).length ?? 0
-            return (
-              <>
-                <div className="apply-chat-head">
-                  <h3>{needsLeft > 0 ? 'Needs you' : 'Review & submit'}</h3>
-                  <p className="hint">
-                    {needsLeft > 0
-                      ? 'Answer one field at a time here, then Submit on the page yourself.'
-                      : 'Review in browser → Submit on the page. Confirm mode never presses Submit.'}
-                  </p>
-                </div>
-                <div className="apply-posting-card">
-                  <div className="apply-posting-title">
-                    {chatJob?.title || chatJobId}
-                    {chatJob?.company ? (
-                      <span className="hint"> · {chatJob.company}</span>
-                    ) : null}
-                  </div>
-                  {link ? (
-                    <a
-                      className="apply-posting-link"
-                      href={link}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={link}
-                    >
-                      {shortHost(link)}
-                      <span className="apply-posting-url-full">{link}</span>
-                    </a>
-                  ) : (
-                    <p className="hint">No posting URL on this result yet.</p>
-                  )}
-                  {chatResult?.usedPractice ? (
-                    <p className="hint apply-practice-note">
-                      Filled on the local practice form (fixture/demo). Live jobs always keep their
-                      real URL above.
-                    </p>
-                  ) : null}
-                  <div className="actions" style={{ marginTop: '0.55rem' }}>
-                    <button
-                      type="button"
-                      className="btn primary"
-                      disabled={busy}
-                      onClick={() => void focusFilled(chatJobId)}
-                    >
-                      Show filled form in browser
-                    </button>
-                    <button
-                      type="button"
-                      className="btn"
-                      disabled={busy}
-                      onClick={() => void focusFilled(chatJobId)}
-                    >
-                      Focus browser
-                    </button>
-                    {link && /^https?:\/\//i.test(link) ? (
-                      <button
-                        type="button"
-                        className="btn"
-                        disabled={busy}
-                        onClick={() => void openListing(chatJobId)}
-                      >
-                        Open posting
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              </>
-            )
-          })()}
+          <div className="apply-chat-head">
+            <h3>{spotlightNeeds > 0 ? 'Needs you chat' : 'Review chat'}</h3>
+            <p className="hint">
+              Extension-style refine — answer one field at a time. Submit stays on the page.
+            </p>
+          </div>
           <div className="apply-chat-log">
             {chat.map((line, i) => {
               if (line.kind === 'bot') {

@@ -1278,6 +1278,16 @@ code {
   background: #fff;
 }
 
+.apply-spotlight {
+  margin-top: 1rem;
+  border-color: #c7d2fe;
+  background: linear-gradient(180deg, #eef2ff 0%, #fff 70%);
+}
+
+.apply-spotlight .apply-chat-head h3 {
+  margin: 0 0 0.15rem;
+}
+
 .apply-posting-title {
   font-weight: 650;
   font-size: 0.95rem;
