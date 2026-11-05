@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import type { AppPreferences } from '../../shared/preferences'
-import type { JobListing, MatchResult } from '../../shared/types'
+import type { ApplyResult, JobListing, MatchResult } from '../../shared/types'
 import EmptyState from './EmptyState'
 
 interface Props {
   prefs: AppPreferences
   onImproveMatch?: (jobId: string) => void
-  /** After queueing Fill, parent should switch to Apply. */
-  onFillQueued?: (jobId: string) => void
+  /** After Apply (open + fill), parent should switch to Apply review. */
+  onApplied?: (jobId: string, results: ApplyResult[]) => void
 }
 
 function scoreTone(score: number): string {
@@ -36,10 +36,11 @@ function ScoreRing({ score }: { score: number }) {
   )
 }
 
-export default function MatchInbox({ prefs, onImproveMatch, onFillQueued }: Props) {
+export default function MatchInbox({ prefs, onImproveMatch, onApplied }: Props) {
   const [jobs, setJobs] = useState<JobListing[]>([])
   const [matches, setMatches] = useState<MatchResult[]>([])
   const [busy, setBusy] = useState(false)
+  const [busyJobId, setBusyJobId] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
   const [filter, setFilter] = useState<'fits' | 'all'>('fits')
   const [dismissed, setDismissed] = useState<Record<string, boolean>>({})
@@ -122,6 +123,7 @@ export default function MatchInbox({ prefs, onImproveMatch, onFillQueued }: Prop
 
   async function openPosting(jobId: string) {
     setBusy(true)
+    setBusyJobId(jobId)
     try {
       const result = await window.desktopApi.openJobPosting(jobId)
       setMsg(result.message)
@@ -129,20 +131,41 @@ export default function MatchInbox({ prefs, onImproveMatch, onFillQueued }: Prop
       setMsg(err instanceof Error ? err.message : String(err))
     } finally {
       setBusy(false)
+      setBusyJobId(null)
     }
   }
 
-  async function queueApply(jobId: string) {
+  /**
+   * Extension-style Apply: open the real posting (or practice for true fixtures),
+   * navigate to Apply, fill from profile, then show Needs you / field review.
+   * Confirm mode fills but never presses Submit.
+   */
+  async function applyToMatch(jobId: string) {
     setBusy(true)
+    setBusyJobId(jobId)
     try {
-      const results = await window.desktopApi.runApply([jobId])
-      const summary = results.map((r) => `${r.status}: ${r.message}`).join('\n')
-      setMsg(summary)
-      onFillQueued?.(jobId)
+      const open = await window.desktopApi.openJobPosting(jobId)
+      // Immediate fill (confirmed path) — not a silent pending queue.
+      const results =
+        prefs.applySafety === 'confirm'
+          ? await window.desktopApi.confirmApply([jobId])
+          : await window.desktopApi.runApply([jobId])
+      const top = results[0]
+      const reviewHint =
+        top?.status === 'needs_you'
+          ? ` Needs you: ${top.needsYouCount ?? 0} field(s) — refine on Apply.`
+          : top?.status === 'filled'
+            ? ' Review filled fields on Apply (Submit stays yours).'
+            : ''
+      setMsg(
+        `${open.message} → ${results.map((r) => `${r.status}: ${r.message}`).join(' · ')}${reviewHint}`
+      )
+      onApplied?.(jobId, results)
     } catch (err) {
       setMsg(err instanceof Error ? err.message : String(err))
     } finally {
       setBusy(false)
+      setBusyJobId(null)
     }
   }
 
@@ -150,8 +173,10 @@ export default function MatchInbox({ prefs, onImproveMatch, onFillQueued }: Prop
     <div className="panel wide">
       <h2>Matches</h2>
       <p className="lede">
-        Extension-style match cards: score ring, keyword coverage, and Improve match. Threshold{' '}
-        {prefs.matchThreshold}.
+        Extension-style match cards: score ring, keyword coverage, then{' '}
+        <strong>Apply</strong> — opens the real posting, fills like the extension, and lands on
+        Needs you / field review. Threshold {prefs.matchThreshold}. Confirm mode never presses
+        Submit.
       </p>
 
       <div className="actions">
@@ -183,11 +208,11 @@ export default function MatchInbox({ prefs, onImproveMatch, onFillQueued }: Prop
         {rows.length === 0 ? (
           <EmptyState
             title="No matches yet"
-            body="Score jobs against your local profile. Best fits can notify you and queue for Fill."
+            body="Score jobs against your local profile. Best fits can notify you — then Apply opens the posting and fills."
             steps={[
               'Pipeline → Run search → match → notify (or Search, then Score jobs here).',
               `Fits use threshold ${prefs.matchThreshold} — lower it in Settings if everything scores shy.`,
-              'Open a posting, Improve match (Resume), or Fill this application when a card looks right.'
+              'Press Apply on a card: open posting → fill → Needs you review (like the extension).'
             ]}
           />
         ) : (
@@ -198,6 +223,7 @@ export default function MatchInbox({ prefs, onImproveMatch, onFillQueued }: Prop
             const total = matched.length + missing.length
             const matchedCount = matched.length
             const score = match?.score ?? 0
+            const cardBusy = busy && busyJobId === job.id
             return (
               <article key={job.id} className="match-card inbox-card">
                 <button
@@ -257,7 +283,17 @@ export default function MatchInbox({ prefs, onImproveMatch, onFillQueued }: Prop
                         </div>
                       </div>
                     ) : null}
-                    <div className="actions" style={{ marginTop: '0.75rem' }}>
+                    <div className="actions match-apply-actions" style={{ marginTop: '0.75rem' }}>
+                      <button
+                        className="btn primary"
+                        type="button"
+                        disabled={busy}
+                        aria-label="Apply — open posting, fill, then review"
+                        title="Open the real posting, fill like the extension, then Needs you review"
+                        onClick={() => void applyToMatch(job.id)}
+                      >
+                        {cardBusy ? 'Applying…' : 'Apply'}
+                      </button>
                       <button
                         className="btn"
                         type="button"
@@ -274,15 +310,11 @@ export default function MatchInbox({ prefs, onImproveMatch, onFillQueued }: Prop
                       >
                         Improve my match
                       </button>
-                      <button
-                        className="btn primary"
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void queueApply(job.id)}
-                      >
-                        Fill this application
-                      </button>
                     </div>
+                    <p className="hint match-apply-hint">
+                      Apply opens the real job URL, starts the application, fills from your
+                      profile, then shows Needs you — Submit stays yours in confirm mode.
+                    </p>
                   </div>
                 </div>
               </article>

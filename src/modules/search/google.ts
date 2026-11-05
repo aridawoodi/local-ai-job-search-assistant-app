@@ -36,10 +36,28 @@ function googleJobId(url: string, jobId: string, title: string, company: string)
   return `google:${Buffer.from(key).toString('base64url').slice(0, 28)}`
 }
 
+function unwrapGoogleRedirect(href: string): string {
+  const raw = (href || '').trim()
+  if (!raw) return ''
+  try {
+    const u = new URL(raw)
+    if (/google\./i.test(u.hostname) && u.pathname === '/url') {
+      const q = u.searchParams.get('q') || u.searchParams.get('url') || ''
+      if (/^https?:\/\//i.test(q)) return q
+    }
+  } catch {
+    /* keep raw */
+  }
+  return raw
+}
+
 function toListing(card: RawCard): JobListing | null {
   const title = card.title.trim()
   if (!title) return null
-  const url = card.url.trim() || `https://www.google.com/search?q=${encodeURIComponent(title + ' ' + card.company)}&udm=8`
+  const external = unwrapGoogleRedirect(card.url.trim())
+  const url =
+    external ||
+    `https://www.google.com/search?q=${encodeURIComponent(title + ' ' + card.company)}&udm=8`
   return {
     id: googleJobId(url, card.jobId, title, card.company),
     title,
@@ -110,12 +128,24 @@ async function scrapeCards(page: Page): Promise<RawCard[]> {
       if (/feedback|was this helpful|people also|related search/i.test(title)) continue
 
       const links = Array.from(root.querySelectorAll('a[href]')) as HTMLAnchorElement[]
-      const applyLink =
-        links.find((a) => /apply|greenhouse|lever|ashby|workday|jobs\.|careers/i.test(a.href)) ||
-        links.find(
-          (a) =>
-            a.href.startsWith('http') &&
-            !/google\.com\/(search|webhp|maps|url\?)/i.test(a.href)
+      const unwrap = (href: string) => {
+        try {
+          const u = new URL(href)
+          if (/google\./i.test(u.hostname) && u.pathname === '/url') {
+            return u.searchParams.get('q') || u.searchParams.get('url') || href
+          }
+        } catch {
+          /* keep */
+        }
+        return href
+      }
+      const hrefs = links.map((a) => unwrap(a.href))
+      const applyHref =
+        hrefs.find((h) => /apply|greenhouse|lever|ashby|workday|jobs\.|careers/i.test(h)) ||
+        hrefs.find(
+          (h) =>
+            h.startsWith('http') &&
+            !/google\.com\/(search|webhp|maps|url\?)/i.test(h)
         )
 
       const text = root.innerText || ''
@@ -126,7 +156,7 @@ async function scrapeCards(page: Page): Promise<RawCard[]> {
       const companyRaw = lines[1] && lines[1] !== title ? lines[1] : ''
       if (companyRaw && noiseTitle.test(companyRaw)) {
         // Second line is a filter chip, not a company — skip unless we have a real apply link.
-        if (!applyLink) continue
+        if (!applyHref) continue
       }
       const company = companyRaw && !noiseTitle.test(companyRaw) ? companyRaw : ''
       const location =
@@ -135,17 +165,17 @@ async function scrapeCards(page: Page): Promise<RawCard[]> {
         ) || ''
       const snippet = lines.slice(2, 5).join(' · ').slice(0, 240)
 
-      const key = `${title}|${company}|${applyLink?.href || ''}`
+      const key = `${title}|${company}|${applyHref || ''}`
       if (seen.has(key)) continue
       // Prefer cards that look like job results (company or external apply link)
-      if (!company && !applyLink) continue
+      if (!company && !applyHref) continue
       seen.add(key)
 
       out.push({
         title,
         company: company.slice(0, 120),
         location: location.slice(0, 120),
-        url: applyLink?.href || '',
+        url: applyHref || '',
         snippet,
         jobId: ''
       })

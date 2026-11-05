@@ -882,13 +882,20 @@ function registerIpc(): void {
     try {
       const page = await browserController.getPage(app.getPath('userData'), prefs.browser)
       await page.goto(resolved.url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+      const host = (() => {
+        try {
+          return new URL(resolved.url).host
+        } catch {
+          return resolved.url.slice(0, 48)
+        }
+      })()
       return {
         ok: true,
         usedPractice: resolved.usedPractice,
         url: resolved.url,
         message: resolved.usedPractice
           ? demoPostingReason(job)
-          : `Opened posting in the automation browser.`
+          : `Opened real posting in the automation browser (${host}).`
       }
     } catch (err) {
       try {

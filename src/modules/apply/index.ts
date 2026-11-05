@@ -8,7 +8,7 @@ import type { ApplyResult, JobListing } from '../../shared/types'
 import { maskProfileForFill } from '../../shared/field-mask'
 import { fillApplicationPage } from './fill'
 import { canAutoSubmit, maybeClickSubmit } from './submit'
-import { runMultiStepSession } from './steps'
+import { openApplyEntry, runMultiStepSession } from './steps'
 
 export interface ApplyContext {
   page: Page
@@ -106,6 +106,10 @@ export async function applyToJobs(
       await ctx.page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
       await new Promise((r) => setTimeout(r, 800))
 
+      // Extension parity: open Apply / Easy Apply on the posting before fill.
+      const entry = await openApplyEntry(ctx.page)
+      await new Promise((r) => setTimeout(r, 400))
+
       pendingConfirm.delete(jobId)
       actions++
 
@@ -135,7 +139,7 @@ export async function applyToJobs(
         submitted = session.submitted
         submitConfirmed = Boolean(session.submitConfirmed)
         submitLabel = session.submitLabel
-        message = session.message
+        message = `${entry.message} ${session.message}`.trim()
         if (session.stepsAdvanced > 0) actions += session.stepsAdvanced
         if (session.submitted) actions++
       } else {
@@ -145,7 +149,7 @@ export async function applyToJobs(
         fields = fill.fields
         adapter = fill.adapter
         formFound = fill.formFound
-        message = fill.message
+        message = `${entry.message} ${fill.message}`.trim()
 
         let submitMsg = ''
         if (fill.formFound && canAutoSubmit(prefs)) {
@@ -164,7 +168,7 @@ export async function applyToJobs(
         } else if (!prefs.allowAutoSubmit) {
           submitMsg = ' Unattended fill only (allowAutoSubmit off).'
         }
-        message = `${fill.message}${submitMsg}`
+        message = `${message}${submitMsg}`
       }
 
       const status = submitted
@@ -285,5 +289,6 @@ export {
   runMultiStepSession,
   clickNextOrContinue,
   ensureEasyApplyModal,
+  openApplyEntry,
   canAdvanceSteps
 } from './steps'
