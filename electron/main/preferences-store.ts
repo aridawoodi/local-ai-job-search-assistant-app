@@ -32,6 +32,20 @@ export function loadPreferences(): AppPreferences {
       companyCareerUrls:
         parsed.companyCareerUrls ?? DEFAULT_PREFERENCES.companyCareerUrls,
       tailoringRules: parsed.tailoringRules ?? DEFAULT_PREFERENCES.tailoringRules,
+      fieldToggles: {
+        ...DEFAULT_PREFERENCES.fieldToggles,
+        ...(parsed.fieldToggles || {})
+      },
+      preferredResumeFormat:
+        parsed.preferredResumeFormat === 'pdf' ||
+        parsed.preferredResumeFormat === 'docx' ||
+        parsed.preferredResumeFormat === 'both'
+          ? parsed.preferredResumeFormat
+          : DEFAULT_PREFERENCES.preferredResumeFormat,
+      rememberAnswers:
+        parsed.rememberAnswers == null
+          ? DEFAULT_PREFERENCES.rememberAnswers
+          : parsed.rememberAnswers === true,
       enabledSources: {
         ...DEFAULT_PREFERENCES.enabledSources,
         ...(parsed.enabledSources || {})
@@ -42,6 +56,7 @@ export function loadPreferences(): AppPreferences {
       ...DEFAULT_PREFERENCES,
       companyCareerUrls: [...DEFAULT_PREFERENCES.companyCareerUrls],
       tailoringRules: [...DEFAULT_PREFERENCES.tailoringRules],
+      fieldToggles: { ...DEFAULT_PREFERENCES.fieldToggles },
       enabledSources: { ...DEFAULT_PREFERENCES.enabledSources }
     }
   }
@@ -59,6 +74,10 @@ export function updatePreferences(partial: Partial<AppPreferences>): AppPreferen
     ...partial,
     companyCareerUrls: partial.companyCareerUrls ?? current.companyCareerUrls,
     tailoringRules: partial.tailoringRules ?? current.tailoringRules,
+    fieldToggles: {
+      ...current.fieldToggles,
+      ...(partial.fieldToggles || {})
+    },
     enabledSources: {
       ...current.enabledSources,
       ...(partial.enabledSources || {})

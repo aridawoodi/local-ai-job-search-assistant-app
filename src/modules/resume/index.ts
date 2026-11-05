@@ -2,10 +2,15 @@ export {
   parseResumeFile,
   extractPatchFromText,
   applyResumePatch,
-  importResumeFromPath
+  importResumeFromPath,
+  previewResumeFromPath,
+  commitResumeImport,
+  filterResumePatch,
+  RESUME_REVIEW_DEFAULTS
 } from './import'
 export type {
   ResumeParseResult,
   ResumeImportPatch,
-  ResumeImportResult
+  ResumeImportResult,
+  ResumeReviewKey
 } from './import'

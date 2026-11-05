@@ -1122,3 +1122,102 @@ code {
     flex-direction: column;
   }
 }
+
+/* Phase 4–5 */
+.resume-match-summary {
+  margin: 1rem 0;
+}
+
+.refine-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.refine-chip {
+  appearance: none;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+  font: 600 0.78rem/1.2 var(--font);
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.refine-chip:hover:not(:disabled) {
+  border-color: var(--brand);
+}
+
+.refine-chip.active {
+  background: var(--gradient-brand);
+  border-color: transparent;
+  color: #fff;
+}
+
+.refine-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.45rem 0.75rem;
+  margin-top: 0.55rem;
+}
+
+.resume-review {
+  border: 1px solid #c7d2fe;
+  background: #f8fafc;
+}
+
+.field-tree {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.85rem;
+}
+
+.field-tree-group h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  color: #1e1b4b;
+}
+
+.onboarding-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+}
+
+.ob-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--surface);
+  text-transform: capitalize;
+}
+
+.ob-pill.active {
+  color: #fff;
+  border-color: transparent;
+  background: var(--gradient-brand);
+}
+
+.ob-pill.done {
+  color: var(--ok);
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.tracker-stage-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}

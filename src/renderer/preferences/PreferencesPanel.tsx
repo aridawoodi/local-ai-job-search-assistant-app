@@ -5,6 +5,7 @@ import type {
   BrowserPreference
 } from '../../shared/preferences'
 import type { OllamaStatus } from '../../shared/ollama'
+import { FIELD_GROUPS, defaultFieldToggles } from '../../shared/field-groups'
 
 interface Props {
   prefs: AppPreferences
@@ -15,6 +16,9 @@ interface Props {
 
 const SETTINGS_NAV = [
   { id: 'behaviour', label: 'Behaviour' },
+  { id: 'fields', label: 'Fields' },
+  { id: 'style', label: 'Writing style' },
+  { id: 'bank', label: 'Answer bank' },
   { id: 'browser', label: 'Browser' },
   { id: 'sites', label: 'Sources' },
   { id: 'ai', label: 'Local AI' },
@@ -35,9 +39,11 @@ export default function PreferencesPanel({
   const [importMsg, setImportMsg] = useState('')
   const [exportMsg, setExportMsg] = useState('')
   const [scheduleMsg, setScheduleMsg] = useState('')
+  const [practiceMsg, setPracticeMsg] = useState('')
   const [careerUrlsText, setCareerUrlsText] = useState(
     (prefs.companyCareerUrls || []).join('\n')
   )
+  const toggles = prefs.fieldToggles || defaultFieldToggles()
 
   async function refreshOllama() {
     setOllama(await window.desktopApi.checkOllama())
@@ -173,7 +179,86 @@ export default function PreferencesPanel({
               void onChange({ matchThreshold: Number(e.target.value) || 0 })
             }
           />
+          <label className="check" style={{ marginTop: '0.65rem' }}>
+            <input
+              type="checkbox"
+              checked={prefs.rememberAnswers}
+              onChange={(e) => void onChange({ rememberAnswers: e.target.checked })}
+            />
+            Remember my answers (merge typed answers into the answer bank when available)
+          </label>
+          <div className="actions" style={{ marginTop: '0.85rem' }}>
+            <button
+              className="btn"
+              type="button"
+              onClick={() =>
+                void (async () => {
+                  const r = await window.desktopApi.openPracticeTour()
+                  setPracticeMsg(r.message)
+                })()
+              }
+            >
+              Take the practice tour
+            </button>
+          </div>
+          {practiceMsg ? <p className="hint">{practiceMsg}</p> : null}
         </div>
+      </section>
+
+      <section id="fields" className="profile-section">
+        <h3>Fields to fill</h3>
+        <p className="hint">
+          Untick anything you&apos;d rather fill yourself. Turned-off fields stay empty during Fill
+          (consent boxes are never ticked).
+        </p>
+        <div className="actions" style={{ marginTop: 0 }}>
+          <button
+            className="btn"
+            type="button"
+            onClick={() => void onChange({ fieldToggles: defaultFieldToggles() })}
+          >
+            Turn all on
+          </button>
+        </div>
+        <div className="field-tree">
+          {FIELD_GROUPS.map(([group, items]) => (
+            <div key={group} className="field-tree-group">
+              <h4>{group}</h4>
+              <div className="review-grid">
+                {items.map(([key, label]) => (
+                  <label key={key} className="check">
+                    <input
+                      type="checkbox"
+                      checked={toggles[key] !== false}
+                      onChange={(e) =>
+                        void onChange({
+                          fieldToggles: { ...toggles, [key]: e.target.checked }
+                        })
+                      }
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section id="style" className="profile-section">
+        <h3>Writing style</h3>
+        <p className="hint">
+          Tone notes and writing samples live on the <strong>Profile</strong> tab (Writing section) —
+          same fields as extension Options → Writing style.
+        </p>
+      </section>
+
+      <section id="bank" className="profile-section">
+        <h3>Answer bank</h3>
+        <p className="hint">
+          Reusable Q&amp;A entries are edited under <strong>Profile → Answer bank</strong>. Similarity
+          merge (≥85%) and never-learn rules match the extension.
+        </p>
       </section>
 
       <section id="browser" className="profile-section">
@@ -301,7 +386,23 @@ export default function PreferencesPanel({
       <section id="tailoring" className="profile-section">
         <h3>Tailoring</h3>
         <div className="field">
-          <label htmlFor="tailorRules">Tailoring rules (one per line)</label>
+          <label htmlFor="preferredResumeFormat">Preferred resume format</label>
+          <select
+            id="preferredResumeFormat"
+            value={prefs.preferredResumeFormat}
+            onChange={(e) =>
+              void onChange({
+                preferredResumeFormat: e.target.value as AppPreferences['preferredResumeFormat']
+              })
+            }
+          >
+            <option value="both">Both (PDF + Word)</option>
+            <option value="pdf">PDF</option>
+            <option value="docx">Word (.docx)</option>
+          </select>
+          <label htmlFor="tailorRules" style={{ marginTop: '0.65rem' }}>
+            Tailoring rules (one per line)
+          </label>
           <p className="hint">Same idea as extension Options → Tailoring rules.</p>
           <textarea
             id="tailorRules"

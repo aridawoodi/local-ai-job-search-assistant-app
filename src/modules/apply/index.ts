@@ -4,6 +4,7 @@ import type { Page } from 'playwright'
 import type { AppPreferences } from '../../shared/preferences'
 import type { UserProfile } from '../../shared/profile'
 import type { ApplyResult, JobListing } from '../../shared/types'
+import { maskProfileForFill } from '../../shared/field-mask'
 import { fillApplicationPage } from './fill'
 import { canAutoSubmit, maybeClickSubmit } from './submit'
 import { runMultiStepSession } from './steps'
@@ -50,6 +51,7 @@ export async function applyToJobs(
 
   const results: ApplyResult[] = []
   let actions = ctx.actionsToday ?? 0
+  const fillProfile = maskProfileForFill(ctx.profile, prefs.fieldToggles)
 
   for (const jobId of jobIds) {
     const job = ctx.jobs.find((j) => j.id === jobId)
@@ -122,7 +124,7 @@ export async function applyToJobs(
         /linkedin|easy-apply|multi-step|workday/i.test(targetUrl + ' ' + (job.title || ''))
 
       if (useSteps) {
-        const session = await runMultiStepSession(ctx.page, ctx.profile, prefs)
+        const session = await runMultiStepSession(ctx.page, fillProfile, prefs)
         filledCount = session.filledCount
         needsYouCount = session.needsYouCount
         fields = session.fields
@@ -136,7 +138,7 @@ export async function applyToJobs(
         if (session.stepsAdvanced > 0) actions += session.stepsAdvanced
         if (session.submitted) actions++
       } else {
-        const fill = await fillApplicationPage(ctx.page, ctx.profile)
+        const fill = await fillApplicationPage(ctx.page, fillProfile)
         filledCount = fill.filledCount
         needsYouCount = fill.needsYouCount
         fields = fill.fields

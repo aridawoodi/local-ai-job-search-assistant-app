@@ -20,7 +20,14 @@ import {
   syncCurrent,
   syncEducation
 } from '../../shared/profile-helpers'
+import {
+  RESUME_REVIEW_DEFAULTS,
+  type ResumeReviewKey
+} from '../../shared/resume-review'
 import { extractDeterministic } from './extract'
+
+export type { ResumeReviewKey }
+export { RESUME_REVIEW_DEFAULTS }
 
 const require = createRequire(import.meta.url)
 // pdf-parse ships CJS; prefer require for Electron main / node builds.
@@ -231,36 +238,132 @@ export function applyResumePatch(
   return p
 }
 
-export async function importResumeFromPath(
+/** Filter a patch to only the sections the user kept in the review UI. */
+export function filterResumePatch(
+  patch: ResumeImportPatch,
+  selected: ResumeReviewKey[]
+): ResumeImportPatch {
+  const on = new Set(selected)
+  const next: ResumeImportPatch = { dropped: patch.dropped || [] }
+  if (on.has('identity')) {
+    next.firstName = patch.firstName
+    next.lastName = patch.lastName
+    next.email = patch.email
+    next.phone = patch.phone
+    next.yearsExperience = patch.yearsExperience
+    next.currentEmployer = patch.currentEmployer
+    next.currentTitle = patch.currentTitle
+    next.currentStartDate = patch.currentStartDate
+  }
+  if (on.has('links')) {
+    next.linkedin = patch.linkedin
+    next.github = patch.github
+    next.portfolio = patch.portfolio
+  }
+  if (on.has('location')) {
+    next.location = patch.location
+    next.city = patch.city
+    next.state = patch.state
+    next.country = patch.country
+  }
+  if (on.has('summary')) next.summary = patch.summary
+  if (on.has('skills')) next.skills = patch.skills
+  if (on.has('workHistory')) next.workHistory = patch.workHistory
+  if (on.has('education')) next.education = patch.education
+  if (on.has('projects')) next.projects = patch.projects
+  if (on.has('certifications')) next.certifications = patch.certifications
+  if (on.has('languages')) next.languages = patch.languages
+  return next
+}
+
+function summarizePatch(patch: ResumeImportPatch, fileLabel: string): string {
+  const bits = [
+    patch.firstName || patch.lastName ? 'name' : '',
+    patch.email ? 'email' : '',
+    patch.workHistory?.length ? `${patch.workHistory.length} jobs` : '',
+    patch.education?.length ? `${patch.education.length} schools` : '',
+    patch.projects?.length ? `${patch.projects.length} projects` : '',
+    patch.skills?.length ? `${patch.skills.length} skills` : '',
+    patch.certifications?.length ? `${patch.certifications.length} certs` : '',
+    patch.languages?.length ? `${patch.languages.length} languages` : '',
+    patch.summary ? 'summary' : '',
+    'resumeText'
+  ].filter(Boolean)
+  const droppedNote = patch.dropped?.length
+    ? ` Left out ${patch.dropped.length} unverified fact(s).`
+    : ''
+  return `Imported ${fileLabel}. Updated: ${bits.join(', ')}. EEO left untouched.${droppedNote}`
+}
+
+/** Parse + extract only — does not write the profile (review UI applies next). */
+export async function previewResumeFromPath(
   filePath: string,
-  current: UserProfile,
   originalName?: string
 ): Promise<ResumeImportResult> {
   try {
     const parsed = await parseResumeFile(filePath, originalName)
     const patch = extractPatchFromText(parsed.text)
-    const profile = applyResumePatch(current, patch, parsed.text)
-    const bits = [
-      patch.firstName || patch.lastName ? 'name' : '',
-      patch.email ? 'email' : '',
-      patch.workHistory?.length ? `${patch.workHistory.length} jobs` : '',
-      patch.education?.length ? `${patch.education.length} schools` : '',
-      patch.projects?.length ? `${patch.projects.length} projects` : '',
-      patch.skills?.length ? `${patch.skills.length} skills` : '',
-      patch.certifications?.length ? `${patch.certifications.length} certs` : '',
-      patch.languages?.length ? `${patch.languages.length} languages` : '',
-      patch.summary ? 'summary' : '',
-      'resumeText'
-    ].filter(Boolean)
-    const droppedNote = patch.dropped?.length
-      ? ` Left out ${patch.dropped.length} unverified fact(s).`
-      : ''
     return {
       ok: true,
-      message: `Imported ${parsed.name} (${parsed.kind}). Updated: ${bits.join(', ')}. EEO left untouched.${droppedNote}`,
+      message: `Parsed ${parsed.name} (${parsed.kind}). Review what to apply — EEO is never imported.`,
       parsed,
-      patch,
-      profile
+      patch
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : String(err)
+    }
+  }
+}
+
+export function commitResumeImport(
+  current: UserProfile,
+  patch: ResumeImportPatch,
+  resumeText: string,
+  selected: ResumeReviewKey[] = RESUME_REVIEW_DEFAULTS
+): ResumeImportResult {
+  const filtered = filterResumePatch(patch, selected)
+  const keepText = selected.includes('resumeText')
+  const profile = applyResumePatch(
+    current,
+    filtered,
+    keepText ? resumeText : current.resumeText || resumeText
+  )
+  if (!keepText && current.resumeText) {
+    profile.resumeText = current.resumeText
+  }
+  const fileLabel = 'resume'
+  return {
+    ok: true,
+    message: summarizePatch(filtered, fileLabel),
+    patch: filtered,
+    profile
+  }
+}
+
+export async function importResumeFromPath(
+  filePath: string,
+  current: UserProfile,
+  originalName?: string,
+  selected: ResumeReviewKey[] = RESUME_REVIEW_DEFAULTS
+): Promise<ResumeImportResult> {
+  try {
+    const preview = await previewResumeFromPath(filePath, originalName)
+    if (!preview.ok || !preview.patch || !preview.parsed) return preview
+    const committed = commitResumeImport(
+      current,
+      preview.patch,
+      preview.parsed.text,
+      selected
+    )
+    return {
+      ...committed,
+      parsed: preview.parsed,
+      message: summarizePatch(
+        committed.patch || preview.patch,
+        `${preview.parsed.name} (${preview.parsed.kind})`
+      )
     }
   } catch (err) {
     return {

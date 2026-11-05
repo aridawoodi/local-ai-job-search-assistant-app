@@ -6,7 +6,13 @@ import type { UserProfile } from '../../shared/profile'
 import { ollamaChat } from './ollama-client'
 import { factCheckText } from './facts'
 
-export type RefineMode = 'polish' | 'shorter' | 'longer' | 'more_specific'
+export type RefineMode =
+  | 'polish'
+  | 'shorter'
+  | 'longer'
+  | 'more_specific'
+  | 'technical'
+  | 'enthusiastic'
 
 export interface RefineResult {
   ok: boolean
@@ -19,9 +25,13 @@ export interface RefineResult {
 
 const MODE_INSTR: Record<RefineMode, string> = {
   polish: 'Polish grammar and clarity; keep the same meaning and length.',
-  shorter: 'Make it more concise (about 30% shorter) without dropping key facts.',
+  shorter: 'Make it shorter (about half as long). Keep the same facts.',
   longer: 'Expand slightly with more concrete detail from the resume facts only.',
-  more_specific: 'Replace vague phrases with specific facts from the resume when available.'
+  more_specific: 'Replace vague phrases with specific facts from the resume when available.',
+  technical:
+    'Make it more technical and precise; keep the same facts, prefer concrete tools and outcomes.',
+  enthusiastic:
+    'Make it sound more enthusiastic and warm, still professional and honest. Keep the same facts.'
 }
 
 export async function refineAnswer(opts: {

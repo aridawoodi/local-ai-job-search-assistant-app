@@ -2,6 +2,8 @@
  * User-controlled preferences. Defaults are sensible; nothing is hard-locked.
  */
 
+import { defaultFieldToggles } from './field-groups'
+
 export type ApplySafetyMode = 'confirm' | 'unattended'
 export type BrowserPreference = 'chrome' | 'edge' | 'either'
 
@@ -57,6 +59,15 @@ export interface AppPreferences {
   reminderNotifications: boolean
   /** Optional user rules for resume tailoring. */
   tailoringRules: string[]
+  /**
+   * Options → Fields to fill. Missing keys default on; `false` means leave empty
+   * and report as turned off during fill.
+   */
+  fieldToggles: Record<string, boolean>
+  /** Preferred resume download/upload format when attaching a master resume. */
+  preferredResumeFormat: 'both' | 'pdf' | 'docx'
+  /** When true, learn typed answers into the answer bank (desktop apply path). */
+  rememberAnswers: boolean
 }
 
 export const DEFAULT_PREFERENCES: AppPreferences = {
@@ -88,5 +99,8 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   },
   scheduledSearchMinutes: 0,
   reminderNotifications: true,
-  tailoringRules: []
+  tailoringRules: [],
+  fieldToggles: defaultFieldToggles(),
+  preferredResumeFormat: 'both',
+  rememberAnswers: true
 }
