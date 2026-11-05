@@ -48,23 +48,24 @@ export default function Onboarding({ onDone }: Props) {
     <div className="onboarding">
       <div className="onboarding-card">
         <div className="mark" aria-hidden />
-        <h2>Welcome — set up once</h2>
+        <h2>Fill job applications in minutes, privately</h2>
         <p className="lede">
-          Local search → match → notify → apply via a real Chrome/Edge window. Defaults stay safe:
-          confirm-before-apply, no auto-submit.
+          Same assistant as the Chrome extension — plus desktop search → match → notify → apply in a
+          real Chrome/Edge window. Defaults stay safe: confirm-before-apply, no auto-submit.
         </p>
 
         <ol className="onboarding-steps">
           <li>
-            <strong>Bring a profile</strong> — extension export, sample fixture, or skip and import
-            later.
+            <strong>Import your resume / profile</strong> — extension export, sample, or skip and
+            import later under Settings.
           </li>
           <li>
             <strong>Open the automation browser</strong> — log into LinkedIn/etc. once in that
             window (never typed by the app).
           </li>
           <li>
-            <strong>Run Pipeline</strong> — search → match → notify, then Apply with confirmation.
+            <strong>Use Pipeline or Apply</strong> — search → match → notify, then fill with
+            confirmation (you still press Submit when you want).
           </li>
         </ol>
 
@@ -84,7 +85,7 @@ export default function Onboarding({ onDone }: Props) {
           <button className="btn choice" disabled={busy} onClick={() => void skip()}>
             <span className="choice-title">Skip for now</span>
             <span className="choice-hint">
-              Continue empty — import anytime under Preferences or Profile → resume.
+              Continue empty — import anytime under Settings or Profile → resume.
             </span>
           </button>
         </div>

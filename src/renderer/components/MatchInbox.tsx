@@ -140,7 +140,7 @@ export default function MatchInbox({ prefs }: Props) {
             body="Score jobs against your local profile. Best fits can notify you and queue for apply-fill."
             steps={[
               'Pipeline → Run search → match → notify (or Search, then Score jobs here).',
-              `Fits use threshold ${prefs.matchThreshold} — lower it in Preferences if everything scores shy.`,
+              `Fits use threshold ${prefs.matchThreshold} — lower it in Settings if everything scores shy.`,
               'Open a posting, or Queue apply / fill when a card looks right.'
             ]}
           />

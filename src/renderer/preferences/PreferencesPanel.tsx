@@ -73,10 +73,11 @@ export default function PreferencesPanel({
 
   return (
     <div className="panel">
-      <h2>Preferences</h2>
+      <h2>Settings</h2>
       <p className="lede">
-        User-controlled settings. Defaults are safe (confirm-before-apply, no auto-submit); nothing is
-        hard-locked to one mode. First-run import also lives here if you skipped onboarding.
+        Same idea as the extension options page: behaviour, browser, sources, local AI, and backups.
+        Defaults stay safe (confirm-before-apply, no auto-submit). Import lives here if you skipped
+        onboarding.
       </p>
 
       <div className="grid">

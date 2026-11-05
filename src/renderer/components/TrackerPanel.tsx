@@ -132,7 +132,7 @@ export default function TrackerPanel() {
             title="No applications tracked"
             body="Rows appear when Apply fills a form, or when you import an extension backup that includes applications."
             steps={[
-              'Preferences → Import from file (full backup) to bring existing tracker rows.',
+              'Settings → Import from file (full backup) to bring existing tracker rows.',
               'Or Matches / Apply → queue a fit and confirm fill.',
               'Stages, notes, reminders, and CSV export live here once rows exist.'
             ]}

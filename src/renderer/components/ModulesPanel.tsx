@@ -76,10 +76,11 @@ const MODULES = [
 export default function ModulesPanel() {
   return (
     <div className="panel">
-      <h2>Modules</h2>
+      <h2>Advanced</h2>
       <p className="lede">
-        Nice polish: captcha/login pause banner, Workday widgets, Easy Apply submit→tracker,
-        app-side refine UX (in-page toolbar deferred).
+        Desktop module map (engineering view). Not part of the extension options nav — kept for
+        debugging and milestones. Nice polish: captcha/login pause banner, Workday widgets, Easy
+        Apply submit→tracker, app-side refine UX.
       </p>
       <div className="module-list">
         {MODULES.map((m) => (

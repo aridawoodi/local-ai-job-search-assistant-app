@@ -118,7 +118,7 @@ export default function ProfilePanel({ bundle, onReload }: Props) {
           title="No profile loaded yet"
           body="Matching and apply-fill need local profile fields. EEO is never inferred from a resume."
           steps={[
-            'Import resume (PDF/DOCX) here, or Preferences → Import from file / Load sample.',
+            'Import resume (PDF/DOCX) here, or Settings → Import from file / Load sample.',
             'Add answer-bank Q&A for common application questions.',
             'Export profile / full backup anytime — data stays under Electron userData.'
           ]}
