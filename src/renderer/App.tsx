@@ -4,6 +4,8 @@ import { DEFAULT_PREFERENCES } from '../shared/preferences'
 import type { StoredProfileBundle } from '../shared/profile'
 import { emptyBundle } from '../shared/profile'
 import type { OllamaStatus } from '../shared/ollama'
+import type { DesktopDiagnostics } from '../shared/ipc'
+import type { CoachNavTab } from './coach/nextAction'
 import PreferencesPanel from './preferences/PreferencesPanel'
 import PipelinePanel from './components/PipelinePanel'
 import ModulesPanel from './components/ModulesPanel'
@@ -61,23 +63,35 @@ export default function App() {
   const [prefs, setPrefs] = useState<AppPreferences>(DEFAULT_PREFERENCES)
   const [bundle, setBundle] = useState<StoredProfileBundle>(emptyBundle())
   const [ollama, setOllama] = useState<OllamaStatus | null>(null)
+  const [diag, setDiag] = useState<DesktopDiagnostics | null>(null)
   const [ready, setReady] = useState(false)
   const [resumeJobId, setResumeJobId] = useState<string | undefined>()
 
   const reloadProfile = useCallback(async () => {
-    setBundle(await window.desktopApi.getProfile())
+    const [profile, d] = await Promise.all([
+      window.desktopApi.getProfile(),
+      window.desktopApi.getDiagnostics()
+    ])
+    setBundle(profile)
+    setDiag(d)
+  }, [])
+
+  const navigateCoach = useCallback((next: CoachNavTab) => {
+    setTab(next)
   }, [])
 
   useEffect(() => {
     void (async () => {
-      const [p, profile, o] = await Promise.all([
+      const [p, profile, o, d] = await Promise.all([
         window.desktopApi.getPreferences(),
         window.desktopApi.getProfile(),
-        window.desktopApi.checkOllama()
+        window.desktopApi.checkOllama(),
+        window.desktopApi.getDiagnostics()
       ])
       setPrefs(p)
       setBundle(profile)
       setOllama(o)
+      setDiag(d)
       setReady(true)
     })()
   }, [])
@@ -167,7 +181,13 @@ export default function App() {
 
       <main className="content">
         {tab === 'home' ? (
-          <PipelinePanel prefs={prefs} />
+          <PipelinePanel
+            prefs={prefs}
+            profileComplete={diag?.profileComplete ?? false}
+            profileMissing={diag?.profileMissing ?? []}
+            onNavigate={navigateCoach}
+            onProfileReload={() => void reloadProfile()}
+          />
         ) : tab === 'matches' ? (
           <MatchInbox
             prefs={prefs}
