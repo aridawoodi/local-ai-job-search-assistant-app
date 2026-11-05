@@ -209,9 +209,19 @@ export default function PipelinePanel({ prefs }: Props) {
       setMeta(result.meta)
       setHistory(result.history)
       setApplyResults([])
-      await refreshPause()
+      if (result.pause) setPause(result.pause)
+      else await refreshPause()
+      const fits = result.matches.filter((m) => m.fits).length
+      const pauseNote =
+        result.pause?.active
+          ? `\nPaused: ${result.pause.title} — ${result.pause.message}`
+          : ''
+      const thresholdNote =
+        result.jobs.length > 0 && fits === 0
+          ? `\nNo jobs met match threshold ${prefs.matchThreshold} (highest score ${Math.max(0, ...result.matches.map((m) => m.score))}). Lower it in Settings or refine the profile/query.`
+          : ''
       setLog(
-        `Demo pipeline complete\n${result.meta.message}\nJobs: ${result.jobs.length} · Fits: ${result.matches.filter((m) => m.fits).length} · Notified: ${result.notified}\n\n` +
+        `Demo pipeline complete\n${result.meta.message}\nJobs: ${result.jobs.length} · Fits: ${fits} · Notified: ${result.notified}${pauseNote}${thresholdNote}\n\n` +
           JSON.stringify(
             result.matches.map((m) => ({
               title: m.title,

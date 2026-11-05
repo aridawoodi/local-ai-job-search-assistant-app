@@ -87,6 +87,7 @@ export interface DesktopApi {
     notified: number
     meta: SearchMeta
     history: SearchHistoryEntry[]
+    pause?: PipelinePause
   }>
   openBrowser: () => Promise<BrowserRuntimeStatus>
   checkSessions: () => Promise<SessionCheckResult[]>

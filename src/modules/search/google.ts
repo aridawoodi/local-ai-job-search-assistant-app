@@ -51,14 +51,51 @@ function toListing(card: RawCard): JobListing | null {
   }
 }
 
+/** Titles / companies that are Google Jobs chrome, not real listings. */
+const GOOGLE_UI_NOISE =
+  /^(jobs|filters?|sort by|job type|date posted|tools|results?|people also search|choose what|giving feedback|feedback on|was this helpful|related searches|next page|previous|more jobs|locations?|experience level|salary|remote|hybrid|full[- ]?time|part[- ]?time|contract|no degree|under \d|posted)$/i
+
+function isGoogleUiNoise(title: string, company: string): boolean {
+  const t = title.trim()
+  const c = company.trim()
+  if (!t) return true
+  if (GOOGLE_UI_NOISE.test(t)) return true
+  if (/feedback|was this helpful|people also|related search/i.test(t)) return true
+  if (GOOGLE_UI_NOISE.test(c)) return true
+  if (/^unknown company$/i.test(c) && /feedback|choose what/i.test(t)) return true
+  // Single generic location/type words used as a "title"
+  if (/^(remote|hybrid|on-?site)$/i.test(t)) return true
+  return false
+}
+
+function looksLikeRealGoogleJob(card: RawCard): boolean {
+  if (isGoogleUiNoise(card.title, card.company)) return false
+  const url = (card.url || '').toLowerCase()
+  const hasExternalApply =
+    Boolean(url) &&
+    !/google\.com\/(search|webhp|maps)/i.test(url) &&
+    /^https?:\/\//i.test(url)
+  const companyOk =
+    Boolean(card.company.trim()) &&
+    !/^unknown company$/i.test(card.company) &&
+    !GOOGLE_UI_NOISE.test(card.company.trim())
+  // Require an external apply/career link, or a plausible company + non-noise title.
+  if (hasExternalApply && card.title.length >= 4) return true
+  if (companyOk && card.title.length >= 8 && !/google\.com\/webhp/i.test(url)) return true
+  return false
+}
+
 async function scrapeCards(page: Page): Promise<RawCard[]> {
   return page.evaluate(() => {
     const out: RawCard[] = []
     const seen = new Set<string>()
+    const noiseTitle =
+      /^(jobs|filters?|sort by|job type|date posted|tools|results?|people also search|choose what|giving feedback|feedback on|was this helpful|related searches|next page|previous|more jobs|locations?|experience level|salary|remote|hybrid|full[- ]?time|part[- ]?time|contract|no degree)$/i
 
+    // Prefer known Google Jobs card roots; avoid bare `li` / every jscontroller (UI chrome).
     const cards = Array.from(
       document.querySelectorAll(
-        'li, div[role="listitem"], div[jscontroller], div.iFjolb, div.PwjeAc, div.gWSKNe'
+        'div.iFjolb, div.PwjeAc, div.gWSKNe, div[jscontroller][data-ved], li[data-ved], div[role="listitem"]'
       )
     )
 
@@ -69,19 +106,29 @@ async function scrapeCards(page: Page): Promise<RawCard[]> {
         null
       const title = titleEl?.innerText?.trim() || ''
       if (!title || title.length < 3 || title.length > 160) continue
-      if (/^jobs$|^filters$|^sort by/i.test(title)) continue
+      if (noiseTitle.test(title)) continue
+      if (/feedback|was this helpful|people also|related search/i.test(title)) continue
 
       const links = Array.from(root.querySelectorAll('a[href]')) as HTMLAnchorElement[]
       const applyLink =
         links.find((a) => /apply|greenhouse|lever|ashby|workday|jobs\.|careers/i.test(a.href)) ||
-        links.find((a) => a.href.startsWith('http') && !/google\.com\/search/i.test(a.href))
+        links.find(
+          (a) =>
+            a.href.startsWith('http') &&
+            !/google\.com\/(search|webhp|maps|url\?)/i.test(a.href)
+        )
 
       const text = root.innerText || ''
       const lines = text
         .split('\n')
         .map((l) => l.trim())
         .filter(Boolean)
-      const company = lines[1] && lines[1] !== title ? lines[1] : ''
+      const companyRaw = lines[1] && lines[1] !== title ? lines[1] : ''
+      if (companyRaw && noiseTitle.test(companyRaw)) {
+        // Second line is a filter chip, not a company — skip unless we have a real apply link.
+        if (!applyLink) continue
+      }
+      const company = companyRaw && !noiseTitle.test(companyRaw) ? companyRaw : ''
       const location =
         lines.find((l) =>
           /\b(remote|hybrid|on-?site|united states|, [A-Z]{2}\b|IL|CA|NY|TX|WA)\b/i.test(l)
@@ -90,7 +137,7 @@ async function scrapeCards(page: Page): Promise<RawCard[]> {
 
       const key = `${title}|${company}|${applyLink?.href || ''}`
       if (seen.has(key)) continue
-      // Prefer cards that look like job results (have company-ish second line or apply link)
+      // Prefer cards that look like job results (company or external apply link)
       if (!company && !applyLink) continue
       seen.add(key)
 
@@ -98,7 +145,7 @@ async function scrapeCards(page: Page): Promise<RawCard[]> {
         title,
         company: company.slice(0, 120),
         location: location.slice(0, 120),
-        url: applyLink?.href || window.location.href,
+        url: applyLink?.href || '',
         snippet,
         jobId: ''
       })
@@ -172,26 +219,34 @@ export async function searchGoogleJobs(
       raw = await scrapeCards(page)
     }
 
-    if (raw.length === 0) {
+    const cleaned = raw.filter(looksLikeRealGoogleJob)
+    const rejectedNoise = raw.length - cleaned.length
+
+    if (cleaned.length === 0) {
       const fallback = loadFixture(options.fixturePath)
       if (fallback.length) {
         return {
           jobs: fallback.slice(0, max).map(toListing).filter(Boolean) as JobListing[],
           usedFixture: true,
           message:
-            'Live Google Jobs returned no parseable cards. Using local fixture for demo.',
+            rejectedNoise > 0
+              ? `Live Google Jobs only returned UI chrome (${rejectedNoise} noise card(s)), not job listings. Using local fixture for demo.`
+              : 'Live Google Jobs returned no parseable cards. Using local fixture for demo.',
           searchUrl
         }
       }
       return {
         jobs: [],
         usedFixture: false,
-        message: 'No Google Jobs cards parsed. Try a different query.',
+        message:
+          rejectedNoise > 0
+            ? 'Google Jobs page had no real listings (filters/feedback chrome only). Try another query or complete any interstitial in the browser.'
+            : 'No Google Jobs cards parsed. Try a different query.',
         searchUrl
       }
     }
 
-    const jobs = raw
+    const jobs = cleaned
       .map(toListing)
       .filter((j): j is JobListing => Boolean(j))
       .slice(0, max)

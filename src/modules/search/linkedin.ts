@@ -237,7 +237,7 @@ export async function searchLinkedIn(
             jobs: fallback.slice(0, max).map(toListing).filter(Boolean) as JobListing[],
             usedFixture: true,
             message:
-              'LinkedIn needs login. Sign in in the automation browser, or using fixture results for this run.',
+              'LinkedIn needs login. Sign in in the automation browser, or use fixture results for this run.',
             searchUrl
           }
         }

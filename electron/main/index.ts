@@ -546,6 +546,7 @@ function registerIpc(): void {
   ipcMain.handle('pipeline:run', async () => {
     try {
       const { jobs, meta, history } = await runSearchInternal()
+      const searchPause = lastPause
       setStatus('match', 'Matching…')
       const prefs = loadPreferences()
       const bundle = loadProfileBundle()
@@ -553,11 +554,25 @@ function registerIpc(): void {
       lastMatches = matches
       setStatus('notify', 'Notifying best fits…')
       const notify = await notifyBestFits(matches, showDesktopNotification)
-      setStatus(
-        'idle',
-        `Pipeline done: ${jobs.length} jobs, ${matches.filter((m) => m.fits).length} fits, ${notify.notified} notified.`
-      )
-      return { jobs, matches, notified: notify.notified, meta, history }
+      const fits = matches.filter((m) => m.fits).length
+      const summary = `Pipeline done: ${jobs.length} jobs, ${fits} fits, ${notify.notified} notified.`
+      // Keep captcha/login pause visible after a fixture-backed run — don't bury it under idle.
+      if (searchPause.active) {
+        setStatus(
+          'paused',
+          `${summary} Still paused — ${searchPause.title}. ${searchPause.message}`
+        )
+      } else {
+        setStatus('idle', summary)
+      }
+      return {
+        jobs,
+        matches,
+        notified: notify.notified,
+        meta,
+        history,
+        pause: lastPause
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setStatus('idle', message)
