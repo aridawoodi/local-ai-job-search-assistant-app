@@ -53,6 +53,11 @@ const api: DesktopApi = {
     selected: import('../../src/modules/resume').ResumeReviewKey[]
     parsed?: { name: string; kind: 'pdf' | 'docx' }
   }) => ipcRenderer.invoke('resume:commit', payload),
+  rereadResumeWithAi: (payload: {
+    resumeText: string
+    patch: import('../../src/modules/resume').ResumeImportPatch
+  }) => ipcRenderer.invoke('resume:ai-reread', payload),
+  getDiagnostics: () => ipcRenderer.invoke('diag:info'),
   openPracticeTour: () => ipcRenderer.invoke('practice:open'),
   listAnswerBank: () => ipcRenderer.invoke('answerbank:list'),
   upsertAnswerBank: (entries: AnswerBankEntry[]) =>

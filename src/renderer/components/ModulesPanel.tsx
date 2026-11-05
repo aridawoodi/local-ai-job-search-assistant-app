@@ -43,7 +43,8 @@ const MODULES = [
     name: 'resume',
     path: 'src/modules/resume',
     badge: 'm7',
-    summary: 'Local PDF/DOCX parse + deterministic profile patch (EEO never inferred).'
+    summary:
+      'Local PDF/DOCX parse + deterministic profile patch; optional Ollama re-read grounded in resume text (EEO never inferred).'
   },
   {
     name: 'answer-bank',
