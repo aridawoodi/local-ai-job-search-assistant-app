@@ -169,6 +169,12 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
     void reload()
   }, [])
 
+  /** Remount-less refresh when Matches Apply hands off a job id. */
+  useEffect(() => {
+    if (!focusJobId) return
+    void reload()
+  }, [focusJobId])
+
   useEffect(() => {
     if (!focusJobId) return
     const el = document.getElementById(`apply-job-${focusJobId}`)
@@ -564,7 +570,11 @@ export default function ApplyQueue({ prefs, focusJobId }: Props) {
   )
 
   /** Always surface posting link + Focus for the focused/latest fill — never a dead-end with no URL. */
-  const spotlightJobId = focusJobId || chatJobId || filled[0]?.jobId
+  const spotlightJobId =
+    focusJobId ||
+    (chatJobId && results.some((r) => r.jobId === chatJobId) ? chatJobId : null) ||
+    filled[filled.length - 1]?.jobId ||
+    filled[0]?.jobId
   const spotlightResult = spotlightJobId
     ? results.find((r) => r.jobId === spotlightJobId)
     : undefined
