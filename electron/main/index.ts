@@ -35,6 +35,7 @@ import { draftCoverLetter, refineAnswer, tailorResume } from '../../src/modules/
 import {
   commitResumeImport,
   previewResumeFromPath,
+  rereadResumeWithAi,
   type ResumeImportPatch,
   type ResumeReviewKey
 } from '../../src/modules/resume'
@@ -107,9 +108,10 @@ function createWindow(): void {
     height: 800,
     minWidth: 880,
     minHeight: 600,
-    title: 'Job Search Assistant',
+    title: 'AI Job Application Assistant',
     show: false,
-    backgroundColor: '#0f1220',
+    // Quiet Chrome light — matches renderer --bg; avoids dark flash before paint
+    backgroundColor: '#f5f6fb',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -747,6 +749,73 @@ function registerIpc(): void {
       return result
     }
   )
+
+  ipcMain.handle(
+    'resume:ai-reread',
+    async (
+      _e,
+      payload: { resumeText: string; patch: ResumeImportPatch }
+    ) => {
+      const prefs = loadPreferences()
+      setStatus('idle', 'Re-reading resume with Ollama…')
+      const result = await rereadResumeWithAi({
+        resumeText: payload.resumeText || '',
+        rulesPatch: payload.patch,
+        ollamaUrl: prefs.ollamaUrl,
+        model: prefs.ollamaModel || undefined
+      })
+      setStatus('idle', result.message)
+      return result
+    }
+  )
+
+  ipcMain.handle('diag:info', async () => {
+    const prefs = loadPreferences()
+    const bundle = loadProfileBundle()
+    const ollama = await checkOllama(prefs.ollamaUrl)
+    const browser = browserController.status()
+    const p = bundle.profile
+    const missing: string[] = []
+    if (!p.firstName) missing.push('first name')
+    if (!p.email) missing.push('email')
+    if (!p.phone) missing.push('phone')
+    if (!(p.resumeText || '').trim()) missing.push('resume text')
+
+    let lastFill: {
+      filled: number
+      needsYou: number
+      skipped: number
+    } | null = null
+    const last = lastApplyResults[0]
+    if (last?.fields?.length) {
+      lastFill = {
+        filled: last.fields.filter((f) => f.status === 'filled').length,
+        needsYou: last.fields.filter(
+          (f) => f.status === 'needs_you' || f.status === 'missing'
+        ).length,
+        skipped: last.fields.filter((f) => f.status === 'skipped').length
+      }
+    }
+
+    return {
+      version: app.getVersion() || '0.1.0',
+      platform: process.platform,
+      arch: process.arch,
+      ollamaReachable: ollama.reachable,
+      ollamaModelCount: (ollama.models || []).length,
+      ollamaModelHint: (ollama.models || [])[0],
+      useLlm: Boolean(prefs.ollamaModel),
+      profileComplete: missing.length === 0,
+      profileMissing: missing,
+      resumeSaved: Boolean(
+        (bundle.resume as { name?: string } | undefined)?.name ||
+          (p.resumeText || '').trim()
+      ),
+      browserOpen: browser.open,
+      browserChannel: browser.channel,
+      lastFill
+    }
+  })
 
   ipcMain.handle('practice:open', async () => {
     const candidates = [

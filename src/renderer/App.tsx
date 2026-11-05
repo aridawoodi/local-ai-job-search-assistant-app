@@ -13,6 +13,7 @@ import MatchInbox from './components/MatchInbox'
 import ApplyQueue from './components/ApplyQueue'
 import TrackerPanel from './components/TrackerPanel'
 import AiAssistPanel from './components/AiAssistPanel'
+import ReportPanel from './components/ReportPanel'
 
 type Tab =
   | 'home'
@@ -21,6 +22,7 @@ type Tab =
   | 'ai'
   | 'tracker'
   | 'profile'
+  | 'report'
   | 'preferences'
   | 'modules'
 
@@ -41,7 +43,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'ai', label: 'Resume' },
       { id: 'tracker', label: 'Tracker' },
-      { id: 'profile', label: 'Profile' }
+      { id: 'profile', label: 'Profile' },
+      { id: 'report', label: 'Report' }
     ]
   },
   {
@@ -181,6 +184,8 @@ export default function App() {
           <TrackerPanel />
         ) : tab === 'profile' ? (
           <ProfilePanel bundle={bundle} onReload={reloadProfile} />
+        ) : tab === 'report' ? (
+          <ReportPanel />
         ) : tab === 'preferences' ? (
           <PreferencesPanel
             prefs={prefs}

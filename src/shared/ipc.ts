@@ -16,10 +16,27 @@ import type {
 import type { TailorResult } from '../modules/ai/tailor'
 import type { CoverResult, CoverLength } from '../modules/ai/cover'
 import type { RefineResult, RefineMode } from '../modules/ai/refine'
-import type { ResumeImportResult } from '../modules/resume/import'
+import type { ResumeImportResult, ResumeImportPatch } from '../modules/resume/import'
 import type { MergeBankResult } from './answer-bank'
+import type { AiRereadResult } from '../modules/resume/ai-reread'
 
 export type { OllamaStatus }
+
+export interface DesktopDiagnostics {
+  version: string
+  platform: string
+  arch: string
+  ollamaReachable: boolean
+  ollamaModelCount: number
+  ollamaModelHint?: string
+  useLlm: boolean
+  profileComplete: boolean
+  profileMissing: string[]
+  resumeSaved: boolean
+  browserOpen: boolean
+  browserChannel: string | null
+  lastFill: { filled: number; needsYou: number; skipped: number } | null
+}
 
 export interface ImportUiResult {
   ok: boolean
@@ -99,11 +116,16 @@ export interface DesktopApi {
   getLastApplyResults: () => Promise<ApplyResult[]>
   importResume: () => Promise<ResumeImportResult & { cancelled?: boolean }>
   commitResumeImport: (payload: {
-    patch: import('../modules/resume/import').ResumeImportPatch
+    patch: ResumeImportPatch
     resumeText: string
     selected: import('./resume-review').ResumeReviewKey[]
     parsed?: { name: string; kind: 'pdf' | 'docx' }
   }) => Promise<ResumeImportResult>
+  rereadResumeWithAi: (payload: {
+    resumeText: string
+    patch: ResumeImportPatch
+  }) => Promise<AiRereadResult>
+  getDiagnostics: () => Promise<DesktopDiagnostics>
   openPracticeTour: () => Promise<{ ok: boolean; message: string }>
   listAnswerBank: () => Promise<AnswerBankEntry[]>
   upsertAnswerBank: (entries: AnswerBankEntry[]) => Promise<MergeBankResult & { bank: AnswerBankEntry[] }>

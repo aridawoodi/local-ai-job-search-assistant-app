@@ -1173,6 +1173,33 @@ code {
   background: #f8fafc;
 }
 
+.diag-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--ink);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.diag-list li {
+  margin: 0.35rem 0;
+}
+
+.report-preview {
+  margin: 0.5rem 0 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
+}
+
 .field-tree {
   display: grid;
   gap: 1rem;

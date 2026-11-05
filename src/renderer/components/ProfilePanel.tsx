@@ -270,6 +270,34 @@ export default function ProfilePanel({ bundle, onReload }: Props) {
     }
   }
 
+  async function onAiReread() {
+    if (!review) return
+    setBusy(true)
+    try {
+      const r = await window.desktopApi.rereadResumeWithAi({
+        resumeText: review.resumeText,
+        patch: review.patch as Parameters<
+          typeof window.desktopApi.rereadResumeWithAi
+        >[0]['patch']
+      })
+      if (r.ok && r.patch) {
+        setReview((prev) =>
+          prev
+            ? {
+                ...prev,
+                patch: r.patch as typeof prev.patch
+              }
+            : prev
+        )
+      }
+      setMsg(r.message)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function toggleReviewKey(key: ResumeReviewKey) {
     setReview((prev) => {
       if (!prev) return prev
@@ -373,7 +401,8 @@ export default function ProfilePanel({ bundle, onReload }: Props) {
           <p className="hint">
             Parsed <strong>{review.parsed.name}</strong> ({review.parsed.kind}). Choose what to
             apply — same idea as the extension importer. EEO / work auth are never imported.
-            Rules-only extract (optional local-AI re-read can refine later).
+            Start with the rules-only extract; optionally re-read with local AI (facts must appear
+            in the resume text).
           </p>
           <div className="review-grid">
             {(
@@ -414,6 +443,14 @@ export default function ProfilePanel({ bundle, onReload }: Props) {
               onClick={() => void onCommitResumeReview()}
             >
               Apply selected to profile
+            </button>
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => void onAiReread()}
+              title="Re-read education, jobs, and projects with Ollama; only keep facts found in the resume"
+            >
+              Read again with AI
             </button>
             <button className="btn" disabled={busy} onClick={() => setReview(null)}>
               Cancel
